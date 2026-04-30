@@ -29,6 +29,9 @@ const screens = {
   grid: document.getElementById("screen-grid"),
   complete: document.getElementById("screen-complete"),
   result: document.getElementById("screen-result"),
+  garage: document.getElementById("screen-garage"),
+  balloon: document.getElementById("screen-balloon"),
+  balloonResult: document.getElementById("screen-balloon-result"),
 };
 const starCountEl = document.getElementById("starCount");
 const cardGridEl = document.getElementById("cardGrid");
@@ -375,6 +378,251 @@ document.getElementById("resultRetryBtn").addEventListener("click", startComplet
 document.getElementById("resultHomeBtn").addEventListener("click", () => showScreen("home"));
 
 // ==============================
+// Web Audio 효과음 (펑/삐) — 외부 파일 0
+// ==============================
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    _audioCtx = new Ctx();
+  }
+  if (_audioCtx.state === "suspended") _audioCtx.resume();
+  return _audioCtx;
+}
+function playPopSound() {
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const dur = 0.14;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    const t = i / ctx.sampleRate;
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 45);
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 800;
+  const g = ctx.createGain(); g.gain.value = 0.55;
+  src.connect(f); f.connect(g); g.connect(ctx.destination);
+  src.start();
+}
+function playWrongSound() {
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const osc = ctx.createOscillator();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(280, ctx.currentTime);
+  osc.frequency.linearRampToValueAtTime(180, ctx.currentTime + 0.25);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + 0.3);
+}
+
+// ==============================
+// 자동차 컬렉션
+// ==============================
+function renderGarage() {
+  const grid = document.getElementById("garageGrid");
+  const info = document.getElementById("garageInfo");
+  const msg = document.getElementById("garageMessage");
+
+  const unlocked = CAR_COLLECTION.filter(c => state.stars >= c.starsRequired).length;
+  const total = CAR_COLLECTION.length;
+  info.textContent = `⭐ 별 ${state.stars}개 · 🚗 ${unlocked} / ${total}`;
+
+  grid.innerHTML = "";
+  CAR_COLLECTION.forEach(car => {
+    const got = state.stars >= car.starsRequired;
+    const tile = document.createElement("div");
+    tile.className = "garage-tile" + (got ? " unlocked" : " locked");
+    tile.innerHTML = got
+      ? `<div class="garage-tile-emoji">${car.emoji}</div><div class="garage-tile-name">${car.name}</div>`
+      : `<div class="garage-tile-emoji">🔒</div><div class="garage-tile-name">${car.name}</div><div class="garage-tile-stars">${car.starsRequired}⭐</div>`;
+    grid.appendChild(tile);
+  });
+
+  // 다음 자동차 진행 바
+  const next = CAR_COLLECTION.find(c => state.stars < c.starsRequired);
+  if (!next) {
+    document.getElementById("garageProgress").style.display = "none";
+    msg.textContent = "🏆 모든 자동차를 모았어요!";
+  } else {
+    document.getElementById("garageProgress").style.display = "block";
+    document.getElementById("garageNextEmoji").textContent = next.emoji;
+    const remaining = next.starsRequired - state.stars;
+    document.getElementById("garageNextRemaining").textContent = `별 ${remaining}개 더!`;
+    const prevIdx = CAR_COLLECTION.indexOf(next) - 1;
+    const prevStars = prevIdx >= 0 ? CAR_COLLECTION[prevIdx].starsRequired : 0;
+    const pct = Math.min(100, Math.round(((state.stars - prevStars) / (next.starsRequired - prevStars)) * 100));
+    document.getElementById("garageProgressFill").style.width = pct + "%";
+    if (state.stars === 0) msg.textContent = "별을 모아 자동차를 모아봐요!";
+    else if (unlocked >= 10) msg.textContent = `🎉 ${unlocked}대! 거의 다!`;
+    else if (unlocked > 0)   msg.textContent = `🚗 자동차 ${unlocked}대 모음`;
+    else                     msg.textContent = "조금만 더 모으면 첫 자동차!";
+  }
+}
+
+// ==============================
+// 풍선 터뜨리기
+// ==============================
+const BALLOON_DURATION = 40;
+const BALLOON_COLORS = ["#ef4444","#f59e0b","#facc15","#10b981","#06b6d4","#3b82f6","#8b5cf6","#ec4899"];
+const balloonFieldEl = document.getElementById("balloonField");
+const balloonMissionEl = document.getElementById("balloonMission");
+const balloonTimerEl = document.getElementById("balloonTimer");
+const balloonScoreEl = document.getElementById("balloonScore");
+state.balloonGame = null;
+
+function startBalloonGame() {
+  state.balloonGame = {
+    score: 0, timeLeft: BALLOON_DURATION,
+    round: 0, timerId: null, correctRemaining: 0, active: true,
+  };
+  updateBalloonStats();
+  startBalloonRound();
+  state.balloonGame.timerId = setInterval(tickBalloonTimer, 1000);
+}
+
+function startBalloonRound() {
+  const game = state.balloonGame;
+  if (!game.active) return;
+  game.round++;
+  // 라운드별 풍선 수
+  const count = game.round < 3 ? 4 : (game.round < 6 ? 5 : 6);
+  const pool = [...WORD_PAIRS].sort(() => Math.random() - 0.5);
+  const correct = pool[0];
+  const wrongs = pool.slice(1, count);
+  const balloons = shuffleArray([
+    { word: correct.word, isCorrect: true },
+    ...wrongs.map(p => ({ word: p.word, isCorrect: false })),
+  ]);
+  balloonMissionEl.textContent = `${correct.emoji} ${correct.word} 찾아!`;
+  balloonMissionEl.style.animation = "none";
+  void balloonMissionEl.offsetWidth;
+  balloonMissionEl.style.animation = "";
+  speak(`${correct.word} 찾아 터뜨려요`, "ko-KR");
+  game.correctRemaining = balloons.filter(b => b.isCorrect).length;
+  renderBalloons(balloons);
+}
+
+function renderBalloons(balloons) {
+  balloonFieldEl.innerHTML = "";
+  const fieldH = balloonFieldEl.getBoundingClientRect().height || 400;
+  balloons.forEach((b, i) => {
+    const el = document.createElement("div");
+    el.className = "balloon";
+    const seg = 80 / balloons.length;
+    const left = 10 + seg * i + (Math.random() - 0.5) * (seg * 0.4);
+    el.style.left = left + "%";
+    el.style.top = (fieldH * 0.4 + Math.random() * fieldH * 0.5) + "px";
+    el.style.animationDuration = BALLOON_DURATION + "s";
+
+    const shape = document.createElement("div");
+    shape.className = "balloon-shape";
+    const color = BALLOON_COLORS[Math.floor(Math.random() * BALLOON_COLORS.length)];
+    shape.style.background = color;
+    shape.style.color = color;
+    const inner = document.createElement("span");
+    inner.style.color = "white";
+    inner.textContent = b.word;
+    shape.appendChild(inner);
+
+    const string = document.createElement("div");
+    string.className = "balloon-string";
+    el.appendChild(shape);
+    el.appendChild(string);
+
+    el.addEventListener("click", () => onBalloonClick(el, b));
+    el.addEventListener("animationend", (e) => {
+      if (e.animationName === "floatUp") el.remove();
+    });
+    balloonFieldEl.appendChild(el);
+  });
+}
+
+function onBalloonClick(el, balloon) {
+  const game = state.balloonGame;
+  if (!game || !game.active || el.classList.contains("popping")) return;
+
+  if (balloon.isCorrect) {
+    el.classList.add("popping");
+    game.score += 10;
+    addStar(1);
+    playPopSound();
+    showBurst(el);
+    updateBalloonStats();
+    game.correctRemaining--;
+    setTimeout(() => el.remove(), 500);
+    if (game.correctRemaining <= 0) {
+      setTimeout(() => { if (game.active) startBalloonRound(); }, 700);
+    }
+  } else {
+    el.classList.add("wrong");
+    playWrongSound();
+    vibrate([20, 30, 20]);
+    game.timeLeft = Math.max(0, game.timeLeft - 2);
+    updateBalloonStats();
+    setTimeout(() => el.classList.remove("wrong"), 400);
+  }
+}
+
+function showBurst(balloonEl) {
+  const rect = balloonEl.getBoundingClientRect();
+  const fieldRect = balloonFieldEl.getBoundingClientRect();
+  const burst = document.createElement("div");
+  burst.className = "balloon-burst";
+  burst.textContent = "💥";
+  burst.style.left = (rect.left - fieldRect.left + rect.width / 2 - 20) + "px";
+  burst.style.top  = (rect.top  - fieldRect.top  + rect.height / 2 - 20) + "px";
+  balloonFieldEl.appendChild(burst);
+  setTimeout(() => burst.remove(), 600);
+}
+
+function tickBalloonTimer() {
+  const game = state.balloonGame;
+  if (!game || !game.active) return;
+  game.timeLeft--;
+  updateBalloonStats();
+  if (game.timeLeft <= 0) endBalloonGame();
+}
+
+function updateBalloonStats() {
+  const game = state.balloonGame;
+  if (!game) return;
+  balloonTimerEl.textContent = `⏱ ${Math.max(0, game.timeLeft)}초`;
+  balloonTimerEl.classList.toggle("danger", game.timeLeft <= 5);
+  balloonScoreEl.textContent = `점수 ${game.score}`;
+}
+
+function endBalloonGame() {
+  const game = state.balloonGame;
+  if (!game) return;
+  game.active = false;
+  clearInterval(game.timerId);
+  const bonus = Math.floor(game.score / 30);
+  if (bonus > 0) addStar(bonus);
+  document.getElementById("balloonFinalScore").textContent = `점수 ${game.score}`;
+  let msg;
+  if (game.score >= 100)     msg = "🌟 정말 잘했어요!";
+  else if (game.score >= 50) msg = "👍 잘했어요!";
+  else if (game.score >= 20) msg = "🎈 좋아요! 한 번 더?";
+  else                       msg = "💪 다시 도전해봐요!";
+  document.getElementById("balloonFinalMsg").textContent = msg;
+  showScreen("balloonResult");
+}
+
+document.getElementById("balloonRetryBtn").addEventListener("click", () => {
+  showScreen("balloon");
+  setTimeout(startBalloonGame, 50);
+});
+document.getElementById("balloonGarageBtn").addEventListener("click", () => {
+  renderGarage();
+  showScreen("garage");
+});
+document.getElementById("balloonHomeBtn").addEventListener("click", () => showScreen("home"));
+
+// ==============================
 // 메인 모드 선택
 // ==============================
 document.querySelectorAll(".mode-card").forEach(btn => {
@@ -389,8 +637,20 @@ document.querySelectorAll(".mode-card").forEach(btn => {
       showScreen("grid");
     } else if (mode === "complete") {
       startCompleteGame();
+    } else if (mode === "garage") {
+      renderGarage();
+      showScreen("garage");
+    } else if (mode === "balloon") {
+      showScreen("balloon");
+      setTimeout(startBalloonGame, 50);
     }
   });
+});
+
+// === 상단 별 카운트 → 차고 바로가기 ===
+document.querySelector(".stars").addEventListener("click", () => {
+  renderGarage();
+  showScreen("garage");
 });
 
 // 홈 버튼
@@ -400,6 +660,11 @@ document.getElementById("homeBtn").addEventListener("click", () => {
   state.questionIndex = 0;
   state.results = [];
   state.questionAnswered = false;
+  // 풍선 게임 정리
+  if (state.balloonGame) {
+    state.balloonGame.active = false;
+    clearInterval(state.balloonGame.timerId);
+  }
   showScreen("home");
 });
 

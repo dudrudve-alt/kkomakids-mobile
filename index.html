@@ -50,6 +50,22 @@
         </div>
         <div class="mode-arrow">›</div>
       </button>
+      <button class="mode-card mode-balloon" data-mode="balloon">
+        <div class="mode-icon">🎈</div>
+        <div class="mode-text">
+          <div class="mode-label">풍선 터뜨리기</div>
+          <div class="mode-desc">단어 찾아 펑!</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+      <button class="mode-card mode-garage" data-mode="garage">
+        <div class="mode-icon">🚗</div>
+        <div class="mode-text">
+          <div class="mode-label">내 자동차</div>
+          <div class="mode-desc">별 모아 자동차 모으기</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
     </div>
   </section>
 
@@ -89,6 +105,47 @@
     <div class="result-buttons">
       <button id="resultRetryBtn" class="btn-primary">한 번 더 🔄</button>
       <button id="resultHomeBtn" class="btn-ghost">홈으로</button>
+    </div>
+  </section>
+
+  <!-- 자동차 차고 화면 -->
+  <section id="screen-garage" class="screen">
+    <div class="garage-header">
+      <div id="garageInfo" class="garage-info">⭐ 0 · 🚗 0 / 16</div>
+      <div id="garageProgress" class="garage-progress">
+        <div class="garage-next">
+          <span id="garageNextEmoji">🚗</span>
+          <span id="garageNextRemaining">5⭐</span>
+        </div>
+        <div class="garage-bar"><div id="garageProgressFill" class="garage-bar-fill"></div></div>
+      </div>
+    </div>
+    <div id="garageGrid" class="garage-grid"></div>
+    <div id="garageMessage" class="garage-message"></div>
+  </section>
+
+  <!-- 풍선 게임 화면 -->
+  <section id="screen-balloon" class="screen">
+    <div class="balloon-info">
+      <div id="balloonMission" class="balloon-mission">🐶 강아지 찾아!</div>
+      <div class="balloon-stats">
+        <div id="balloonTimer" class="balloon-timer">⏱ 30초</div>
+        <div id="balloonScore" class="balloon-score">0점</div>
+      </div>
+    </div>
+    <div id="balloonField" class="balloon-field"></div>
+  </section>
+
+  <!-- 풍선 결과 화면 -->
+  <section id="screen-balloon-result" class="screen">
+    <div class="result-emoji">🎈</div>
+    <div class="result-title">시간 끝!</div>
+    <div id="balloonFinalScore" class="result-score">0점</div>
+    <div id="balloonFinalMsg" class="result-message"></div>
+    <div class="result-buttons">
+      <button id="balloonRetryBtn" class="btn-primary">한 번 더 🔄</button>
+      <button id="balloonGarageBtn" class="btn-ghost">차고 보기 🚗</button>
+      <button id="balloonHomeBtn" class="btn-ghost">홈으로</button>
     </div>
   </section>
 
