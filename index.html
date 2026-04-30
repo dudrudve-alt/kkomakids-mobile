@@ -74,6 +74,14 @@
         </div>
         <div class="mode-arrow">›</div>
       </button>
+      <button class="mode-card mode-dashboard" data-mode="dashboard">
+        <div class="mode-icon">📊</div>
+        <div class="mode-text">
+          <div class="mode-label">학습 현황</div>
+          <div class="mode-desc">부모용 - 약점 자모 분석</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
       <button class="mode-card mode-garage" data-mode="garage">
         <div class="mode-icon">🚗</div>
         <div class="mode-text">
@@ -122,6 +130,30 @@
       <button id="resultRetryBtn" class="btn-primary">한 번 더 🔄</button>
       <button id="resultHomeBtn" class="btn-ghost">홈으로</button>
     </div>
+  </section>
+
+  <!-- 부모 대시보드 화면 -->
+  <section id="screen-dashboard" class="screen">
+    <h1 class="welcome">📊 학습 현황</h1>
+    <div class="dash-summary">
+      <div class="dash-stat"><div class="dash-stat-label">총 시도</div><div id="dashTotal" class="dash-stat-value">0</div></div>
+      <div class="dash-stat"><div class="dash-stat-label">정답률</div><div id="dashAccuracy" class="dash-stat-value">0%</div></div>
+      <div class="dash-stat"><div class="dash-stat-label">오늘</div><div id="dashToday" class="dash-stat-value">0</div></div>
+      <div class="dash-stat"><div class="dash-stat-label">⭐ 별</div><div id="dashStars" class="dash-stat-value">0</div></div>
+    </div>
+    <div class="dash-section">
+      <h3 class="dash-h3">🎯 약점 자모 (자주 틀려요)</h3>
+      <div id="dashWeakness" class="dash-list"></div>
+    </div>
+    <div class="dash-section">
+      <h3 class="dash-h3">💪 잘하는 자모</h3>
+      <div id="dashStrength" class="dash-list"></div>
+    </div>
+    <div class="dash-section">
+      <h3 class="dash-h3">📅 최근 7일</h3>
+      <div id="dashDaily" class="dash-daily"></div>
+    </div>
+    <button id="dashResetBtn" class="btn-ghost">통계 초기화</button>
   </section>
 
   <!-- 자모 합성 화면 -->

@@ -2,6 +2,92 @@
 // 꼬마키즈 모바일 — 핵심 로직
 // ==============================
 
+// === 학습 통계 시스템 ===
+// stats: { jamo: { ㄱ: {correct, wrong}, ... }, daily: { "2026-04-30": {correct, wrong} }, totalCorrect, totalWrong }
+let stats = { jamo: {}, daily: {}, totalCorrect: 0, totalWrong: 0 };
+
+function _loadStats() {
+  try {
+    const raw = localStorage.getItem("kkomakids_m_stats");
+    if (raw) stats = JSON.parse(raw);
+  } catch (_) {}
+}
+function saveStats() {
+  try { localStorage.setItem("kkomakids_m_stats", JSON.stringify(stats)); } catch (_) {}
+}
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+_loadStats();
+
+// 자모 단위 정답/오답 기록
+function recordJamo(jamo, isCorrect) {
+  if (!jamo) return;
+  if (!stats.jamo[jamo]) stats.jamo[jamo] = { correct: 0, wrong: 0 };
+  if (isCorrect) { stats.jamo[jamo].correct++; stats.totalCorrect++; }
+  else           { stats.jamo[jamo].wrong++;   stats.totalWrong++; }
+  const k = todayKey();
+  if (!stats.daily[k]) stats.daily[k] = { correct: 0, wrong: 0 };
+  if (isCorrect) stats.daily[k].correct++;
+  else           stats.daily[k].wrong++;
+  saveStats();
+}
+
+// 단어의 모든 자모를 한 번에 기록
+function recordWord(word, isCorrect) {
+  for (const ch of word) {
+    const code = ch.charCodeAt(0);
+    if (code < 0xAC00 || code > 0xD7A3) continue;
+    const d = decomposeSyllable(ch);
+    if (!d) continue;
+    recordJamo(d.consonant, isCorrect);
+    recordJamo(d.vowel, isCorrect);
+    if (d.hasFinal && d.final) recordJamo(d.final, isCorrect);
+  }
+}
+
+// 자모 가중치 (오답률 높을수록 우선 출제)
+function jamoWeight(jamo) {
+  const s = stats.jamo[jamo];
+  if (!s || (s.correct + s.wrong) === 0) return 1;
+  const rate = s.wrong / (s.correct + s.wrong);
+  return 1 + rate * 4; // 최대 5배
+}
+
+// 단어의 약점 점수: 단어 내 자모 가중치 평균
+function wordWeight(word) {
+  const jamos = [];
+  for (const ch of word) {
+    const code = ch.charCodeAt(0);
+    if (code < 0xAC00 || code > 0xD7A3) continue;
+    const d = decomposeSyllable(ch);
+    if (!d) continue;
+    jamos.push(d.consonant, d.vowel);
+    if (d.hasFinal && d.final) jamos.push(d.final);
+  }
+  if (jamos.length === 0) return 1;
+  return jamos.reduce((a, j) => a + jamoWeight(j), 0) / jamos.length;
+}
+
+function pickWeighted(arr, getWeight) {
+  if (arr.length === 0) return null;
+  const weights = arr.map(getWeight);
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0) return arr[Math.floor(Math.random() * arr.length)];
+  let r = Math.random() * total;
+  for (let i = 0; i < arr.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return arr[i];
+  }
+  return arr[arr.length - 1];
+}
+function pickWeightedWord(pool, exclude = []) {
+  const filtered = pool.filter(p => !exclude.includes(p.word));
+  const cand = filtered.length > 0 ? filtered : pool;
+  return pickWeighted(cand, p => wordWeight(p.word));
+}
+
 // === 안전한 localStorage ===
 const safeStorage = {
   get(key, fallback = null) {
@@ -34,6 +120,7 @@ const screens = {
   balloonResult: document.getElementById("screen-balloon-result"),
   compose: document.getElementById("screen-compose"),
   clap: document.getElementById("screen-clap"),
+  dashboard: document.getElementById("screen-dashboard"),
 };
 const starCountEl = document.getElementById("starCount");
 const cardGridEl = document.getElementById("cardGrid");
@@ -232,10 +319,8 @@ function renderProgressBar() {
 }
 
 function generateCompletionPuzzle() {
-  // 최근 5문제 단어 제외
-  let candidates = COMPLETION_PUZZLES.filter(p => !state.recentWords.includes(p.word));
-  if (candidates.length === 0) candidates = COMPLETION_PUZZLES;
-  const puzzle = candidates[Math.floor(Math.random() * candidates.length)];
+  // 약점 가중치 + 최근 5문제 단어 제외
+  const puzzle = pickWeightedWord(COMPLETION_PUZZLES, state.recentWords);
   state.recentWords.push(puzzle.word);
   if (state.recentWords.length > 5) state.recentWords.shift();
 
@@ -328,6 +413,7 @@ function handleCompletionAnswer(btn, chosen) {
     state.results.push(true);
     state.correctCount++;
     addStar(1);
+    recordJamo(p.correctAnswer, true); // 통계: 정답
     box.classList.remove("missing", "vowel-vertical", "vowel-horizontal");
     box.classList.add("revealed");
     box.innerHTML = "";
@@ -337,6 +423,7 @@ function handleCompletionAnswer(btn, chosen) {
   } else {
     btn.classList.add("wrong");
     state.results.push(false);
+    recordJamo(p.correctAnswer, false); // 통계: 약점 기록
     vibrate([20, 30, 20]); // 오답 진동
     setTimeout(() => {
       vowelChoicesEl.querySelectorAll(".vowel-choice").forEach(b => {
@@ -545,9 +632,10 @@ function startBalloonRound() {
   game.round++;
   // 라운드별 풍선 수
   const count = game.round < 3 ? 4 : (game.round < 6 ? 5 : 6);
-  const pool = [...WORD_PAIRS].sort(() => Math.random() - 0.5);
-  const correct = pool[0];
-  const wrongs = pool.slice(1, count);
+  // 약점 가중치로 정답 선택
+  const correct = pickWeightedWord(WORD_PAIRS);
+  const pool = WORD_PAIRS.filter(p => p.word !== correct.word).sort(() => Math.random() - 0.5);
+  const wrongs = pool.slice(0, count - 1);
   const balloons = shuffleArray([
     { word: correct.word, isCorrect: true },
     ...wrongs.map(p => ({ word: p.word, isCorrect: false })),
@@ -605,6 +693,7 @@ function onBalloonClick(el, balloon) {
     game.score += 10;
     addStar(1);
     playPopSound();
+    recordWord(balloon.word, true); // 통계
     showBurst(el);
     updateBalloonStats();
     game.correctRemaining--;
@@ -615,6 +704,7 @@ function onBalloonClick(el, balloon) {
   } else {
     el.classList.add("wrong");
     playWrongSound();
+    recordWord(balloon.word, false); // 통계: 잘못 누른 단어 약점
     vibrate([20, 30, 20]);
     game.timeLeft = Math.max(0, game.timeLeft - 2);
     updateBalloonStats();
@@ -819,7 +909,7 @@ function speakSyllablesWithClaps(word) {
 }
 
 function loadClapQuestion() {
-  const item = SYLLABLE_WORDS[Math.floor(Math.random() * SYLLABLE_WORDS.length)];
+  const item = pickWeightedWord(SYLLABLE_WORDS); // 약점 가중치
   state.clap = { item, answered: false };
   clapEmojiEl.textContent = item.emoji;
   clapWordEl.textContent = item.word;
@@ -850,6 +940,7 @@ function handleClapAnswer(btn, chosen, correct) {
     btn.classList.add("correct");
     clapFeedbackEl.textContent = "🎉 잘했어요!";
     addStar(1);
+    recordWord(state.clap.item.word, true); // 통계
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     playClapSequence(correct, () => {
       setTimeout(loadClapQuestion, 600);
@@ -857,16 +948,98 @@ function handleClapAnswer(btn, chosen, correct) {
   } else {
     btn.classList.add("wrong");
     clapFeedbackEl.textContent = "한 번 더!";
+    recordWord(state.clap.item.word, false); // 통계
     vibrate([20, 30, 20]);
     speakSyllablesWithClaps(state.clap.item.word);
     setTimeout(() => btn.classList.remove("wrong"), 500);
-    // lock 안 거니까 다시 시도 가능
   }
 }
 
 document.getElementById("nextClapBtn").addEventListener("click", () => {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   loadClapQuestion();
+});
+
+// ==============================
+// 부모 대시보드
+// ==============================
+function renderDashboard() {
+  const total = stats.totalCorrect + stats.totalWrong;
+  const accuracy = total > 0 ? Math.round((stats.totalCorrect / total) * 100) : 0;
+  const today = stats.daily[todayKey()] || { correct: 0, wrong: 0 };
+  const todayTotal = today.correct + today.wrong;
+
+  document.getElementById("dashTotal").textContent = total;
+  document.getElementById("dashAccuracy").textContent = accuracy + "%";
+  document.getElementById("dashToday").textContent = todayTotal;
+  document.getElementById("dashStars").textContent = state.stars;
+
+  const entries = Object.entries(stats.jamo)
+    .map(([ch, s]) => ({ ch, ...s, tries: s.correct + s.wrong, errorRate: (s.correct + s.wrong) > 0 ? s.wrong / (s.correct + s.wrong) : 0 }))
+    .filter(e => e.tries >= 2);
+
+  const weakness = [...entries]
+    .filter(e => e.wrong > 0)
+    .sort((a, b) => b.errorRate - a.errorRate || b.wrong - a.wrong)
+    .slice(0, 8);
+
+  const strength = [...entries]
+    .filter(e => e.correct >= 2 && e.errorRate < 0.3)
+    .sort((a, b) => a.errorRate - b.errorRate || b.correct - a.correct)
+    .slice(0, 8);
+
+  const weakEl = document.getElementById("dashWeakness");
+  const strongEl = document.getElementById("dashStrength");
+  weakEl.innerHTML = "";
+  strongEl.innerHTML = "";
+  if (weakness.length === 0) {
+    weakEl.innerHTML = '<div class="dash-empty">아직 데이터가 부족해요</div>';
+  } else {
+    weakness.forEach(e => {
+      const div = document.createElement("div");
+      div.className = "dash-jamo weak";
+      div.innerHTML = `<span class="ch">${e.ch}</span><span class="stat">${e.wrong}/${e.tries}</span>`;
+      weakEl.appendChild(div);
+    });
+  }
+  if (strength.length === 0) {
+    strongEl.innerHTML = '<div class="dash-empty">아직 데이터가 부족해요</div>';
+  } else {
+    strength.forEach(e => {
+      const div = document.createElement("div");
+      div.className = "dash-jamo strong";
+      div.innerHTML = `<span class="ch">${e.ch}</span><span class="stat">${e.correct}/${e.tries}</span>`;
+      strongEl.appendChild(div);
+    });
+  }
+
+  // 최근 7일 추이
+  const dailyEl = document.getElementById("dashDaily");
+  dailyEl.innerHTML = "";
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const s = stats.daily[k] || { correct: 0, wrong: 0 };
+    days.push({ d, k, total: s.correct + s.wrong });
+  }
+  const max = Math.max(1, ...days.map(x => x.total));
+  days.forEach(x => {
+    const bar = document.createElement("div");
+    bar.className = "dash-bar";
+    const h = Math.round((x.total / max) * 100);
+    const label = `${x.d.getMonth()+1}/${x.d.getDate()}`;
+    bar.innerHTML = `<div class="dash-bar-fill" style="height:${h}%">${x.total > 0 ? `<span class="dash-bar-count">${x.total}</span>` : ""}</div><div class="dash-bar-date">${label}</div>`;
+    dailyEl.appendChild(bar);
+  });
+}
+
+document.getElementById("dashResetBtn").addEventListener("click", () => {
+  if (!confirm("학습 통계를 모두 초기화할까요?")) return;
+  stats = { jamo: {}, daily: {}, totalCorrect: 0, totalWrong: 0 };
+  saveStats();
+  renderDashboard();
 });
 
 // ==============================
@@ -895,6 +1068,9 @@ document.querySelectorAll(".mode-card").forEach(btn => {
     } else if (mode === "clap") {
       showScreen("clap");
       setTimeout(loadClapQuestion, 50);
+    } else if (mode === "dashboard") {
+      renderDashboard();
+      showScreen("dashboard");
     }
   });
 });
