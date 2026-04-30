@@ -395,21 +395,25 @@ function getAudioCtx() {
   return _audioCtx;
 }
 
-// iOS Safari 깨우기: 첫 사용자 인터랙션에서 무음 노트 재생
+// iOS Safari 깨우기 + 무음 모드 일부 우회용 HTMLAudioElement
+const _silentAudio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
+_silentAudio.loop = false;
+
 function warmUpAudio() {
   if (_audioWarmedUp) return;
   const ctx = getAudioCtx();
   if (!ctx) return;
   _audioWarmedUp = true;
-  // 무음 짧은 노트 (gain 0.0001)로 컨텍스트 활성화
+  // 1) AudioContext 무음 노트
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
   g.gain.value = 0.0001;
   osc.connect(g); g.connect(ctx.destination);
   osc.start();
   osc.stop(ctx.currentTime + 0.05);
+  // 2) HTMLAudioElement 무음 재생 (iOS audio session unlock)
+  _silentAudio.play().catch(() => {});
 }
-// 첫 터치/클릭 한 번만 등록 (capture로 가장 먼저)
 const _warmHandler = () => { warmUpAudio(); };
 document.addEventListener("touchstart", _warmHandler, { once: true, capture: true, passive: true });
 document.addEventListener("click",      _warmHandler, { once: true, capture: true });
