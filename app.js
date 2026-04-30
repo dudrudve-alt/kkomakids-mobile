@@ -121,6 +121,10 @@ const screens = {
   compose: document.getElementById("screen-compose"),
   clap: document.getElementById("screen-clap"),
   dashboard: document.getElementById("screen-dashboard"),
+  mole: document.getElementById("screen-mole"),
+  moleResult: document.getElementById("screen-mole-result"),
+  memory: document.getElementById("screen-memory"),
+  memoryResult: document.getElementById("screen-memory-result"),
 };
 const starCountEl = document.getElementById("starCount");
 const cardGridEl = document.getElementById("cardGrid");
@@ -961,6 +965,355 @@ document.getElementById("nextClapBtn").addEventListener("click", () => {
 });
 
 // ==============================
+// 두더지 잡기
+// ==============================
+const MOLE_DURATION = 40;
+const MOLE_HOLE_COUNT = 6;
+const MOLE_SPAWN_INTERVAL = 1400;
+const MOLE_LIFETIME_MIN = 2400;
+const MOLE_LIFETIME_MAX = 3600;
+const MOLE_MISSION_INTERVAL = 10;
+
+const moleFieldEl = document.getElementById("moleField");
+const moleMissionEl = document.getElementById("moleMission");
+const moleTimerEl = document.getElementById("moleTimer");
+const moleScoreEl = document.getElementById("moleScore");
+state.moleGame = null;
+
+function consonantName(c) {
+  const NAMES = {
+    "ㄱ":"기역","ㄴ":"니은","ㄷ":"디귿","ㄹ":"리을","ㅁ":"미음",
+    "ㅂ":"비읍","ㅅ":"시옷","ㅇ":"이응","ㅈ":"지읒","ㅊ":"치읓",
+    "ㅋ":"키읔","ㅌ":"티읕","ㅍ":"피읖","ㅎ":"히읗",
+  };
+  return NAMES[c] || c;
+}
+
+function getInitialConsonant(word) {
+  const d = decomposeSyllable(word[0]);
+  return d ? d.consonant : null;
+}
+function getMoleMissionType(round) {
+  if (round < 2) return "match";
+  if (round < 4) return "initial";
+  return "jamo";
+}
+function isWordMatchingMission(word, mission) {
+  if (mission.type === "match")   return word === mission.targetWord;
+  if (mission.type === "initial") return getInitialConsonant(word) === mission.targetCon;
+  if (mission.type === "jamo") {
+    return [...word].some(s => decomposeSyllable(s)?.consonant === mission.targetCon);
+  }
+  return false;
+}
+
+function startMoleGame() {
+  state.moleGame = {
+    score: 0, timeLeft: MOLE_DURATION, round: 0,
+    timerId: null, spawnId: null,
+    holeStates: Array(MOLE_HOLE_COUNT).fill(null),
+    active: true, mission: null,
+  };
+  pickMoleTarget();
+  bindMoleHoles();
+  updateMoleStats();
+  state.moleGame.timerId = setInterval(tickMoleTimer, 1000);
+  state.moleGame.spawnId = setInterval(spawnMole, MOLE_SPAWN_INTERVAL);
+}
+
+function pickMoleTarget() {
+  const game = state.moleGame;
+  const round = game.round || 0;
+  const type = getMoleMissionType(round);
+  const correct = pickWeightedWord(WORD_PAIRS);
+  let mission, missionText, spoken;
+
+  if (type === "match") {
+    mission = { type, targetWord: correct.word };
+    missionText = `${correct.emoji} ${correct.word} 잡아!`;
+    spoken = `${correct.word} 잡아요`;
+  } else if (type === "initial") {
+    const targetCon = getInitialConsonant(correct.word);
+    mission = { type, targetCon, targetWord: correct.word };
+    missionText = `${correct.emoji} "${targetCon}"로 시작!`;
+    spoken = `${correct.word}처럼 ${consonantName(targetCon)} 소리로 시작하는 단어 잡아요`;
+  } else {
+    const targetCon = getInitialConsonant(correct.word);
+    mission = { type, targetCon };
+    missionText = `"${targetCon}" 들어간 단어!`;
+    spoken = `${consonantName(targetCon)}이 들어간 단어 잡아요`;
+  }
+  game.mission = mission;
+  moleMissionEl.textContent = missionText;
+  moleMissionEl.style.animation = "none";
+  void moleMissionEl.offsetWidth;
+  moleMissionEl.style.animation = "";
+  speak(spoken, "ko-KR");
+}
+
+function bindMoleHoles() {
+  moleFieldEl.querySelectorAll(".mole-hole").forEach((hole, i) => {
+    hole.classList.remove("active", "bonked", "miss");
+    const wordEl = hole.querySelector(".mole-word");
+    if (wordEl) wordEl.textContent = "";
+    if (!hole.dataset.bound) {
+      hole.dataset.bound = "1";
+      hole.addEventListener("click", () => onMoleHoleClick(i));
+    }
+  });
+}
+
+function spawnMole() {
+  const game = state.moleGame;
+  if (!game || !game.active || !game.mission) return;
+  const empty = [];
+  game.holeStates.forEach((s, i) => { if (s === null) empty.push(i); });
+  if (empty.length === 0) return;
+  const idx = empty[Math.floor(Math.random() * empty.length)];
+
+  const matching    = WORD_PAIRS.filter(p => isWordMatchingMission(p.word, game.mission));
+  const notMatching = WORD_PAIRS.filter(p => !isWordMatchingMission(p.word, game.mission));
+  let pickFrom;
+  if (Math.random() < 0.5 && matching.length > 0) pickFrom = matching;
+  else pickFrom = notMatching.length > 0 ? notMatching : matching;
+  const wordItem = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+
+  game.holeStates[idx] = wordItem;
+  const hole = moleFieldEl.querySelector(`.mole-hole[data-hole="${idx}"]`);
+  const wordEl = hole.querySelector(".mole-word");
+  if (wordEl) wordEl.textContent = wordItem.word;
+  hole.classList.add("active");
+
+  const lifetime = MOLE_LIFETIME_MIN + Math.random() * (MOLE_LIFETIME_MAX - MOLE_LIFETIME_MIN);
+  setTimeout(() => {
+    if (game.holeStates[idx] === wordItem) hideMole(idx);
+  }, lifetime);
+}
+
+function hideMole(idx) {
+  const game = state.moleGame;
+  if (!game) return;
+  game.holeStates[idx] = null;
+  const hole = moleFieldEl.querySelector(`.mole-hole[data-hole="${idx}"]`);
+  if (!hole) return;
+  hole.classList.remove("active", "bonked", "miss");
+  const wordEl = hole.querySelector(".mole-word");
+  setTimeout(() => {
+    if (!hole.classList.contains("active") && wordEl) wordEl.textContent = "";
+  }, 250);
+}
+
+function onMoleHoleClick(idx) {
+  const game = state.moleGame;
+  if (!game || !game.active || !game.mission) return;
+  const wordItem = game.holeStates[idx];
+  if (!wordItem) return;
+  const hole = moleFieldEl.querySelector(`.mole-hole[data-hole="${idx}"]`);
+  const isCorrect = isWordMatchingMission(wordItem.word, game.mission);
+
+  if (isCorrect) {
+    hole.classList.add("bonked");
+    game.score += 10;
+    addStar(1);
+    playPopSound();
+    recordWord(wordItem.word, true);
+    updateMoleStats();
+    setTimeout(() => hideMole(idx), 280);
+  } else {
+    hole.classList.add("miss");
+    playWrongSound();
+    recordWord(wordItem.word, false);
+    vibrate([20, 30, 20]);
+    game.timeLeft = Math.max(0, game.timeLeft - 2);
+    updateMoleStats();
+    setTimeout(() => hole.classList.remove("miss"), 300);
+  }
+}
+
+function tickMoleTimer() {
+  const game = state.moleGame;
+  if (!game || !game.active) return;
+  game.timeLeft--;
+  updateMoleStats();
+  const elapsed = MOLE_DURATION - game.timeLeft;
+  if (elapsed > 0 && elapsed % MOLE_MISSION_INTERVAL === 0) {
+    game.round++;
+    pickMoleTarget();
+  }
+  if (game.timeLeft <= 0) endMoleGame();
+}
+
+function updateMoleStats() {
+  const game = state.moleGame;
+  if (!game) return;
+  moleTimerEl.textContent = `⏱ ${Math.max(0, game.timeLeft)}초`;
+  moleTimerEl.classList.toggle("danger", game.timeLeft <= 5);
+  moleScoreEl.textContent = `점수 ${game.score}`;
+}
+
+function endMoleGame() {
+  const game = state.moleGame;
+  if (!game) return;
+  game.active = false;
+  clearInterval(game.timerId);
+  clearInterval(game.spawnId);
+  const bonus = Math.floor(game.score / 30);
+  if (bonus > 0) addStar(bonus);
+  document.getElementById("moleFinalScore").textContent = `점수 ${game.score}`;
+  let msg;
+  if (game.score >= 100)     msg = "🌟 정말 잘했어요!";
+  else if (game.score >= 50) msg = "👍 잘했어요!";
+  else if (game.score >= 20) msg = "🦝 좋아요! 한 번 더?";
+  else                       msg = "💪 다시 도전해봐요!";
+  document.getElementById("moleFinalMsg").textContent = msg;
+  showScreen("moleResult");
+}
+
+document.getElementById("moleRetryBtn").addEventListener("click", () => {
+  showScreen("mole");
+  setTimeout(startMoleGame, 50);
+});
+document.getElementById("moleGarageBtn").addEventListener("click", () => {
+  renderGarage();
+  showScreen("garage");
+});
+document.getElementById("moleHomeBtn").addEventListener("click", () => showScreen("home"));
+
+// ==============================
+// 짝 맞추기
+// ==============================
+const MEMORY_PAIR_COUNT = 6;
+const memoryGridEl = document.getElementById("memoryGrid");
+const memoryProgressEl = document.getElementById("memoryProgress");
+const memoryMovesEl = document.getElementById("memoryMoves");
+state.memoryGame = null;
+
+function startMemoryGame() {
+  // 약점 가중치로 6쌍 선택 (중복 X)
+  const pool = [...WORD_PAIRS];
+  const pairs = [];
+  for (let i = 0; i < MEMORY_PAIR_COUNT && pool.length > 0; i++) {
+    const picked = pickWeightedWord(pool);
+    pairs.push(picked);
+    const idx = pool.indexOf(picked);
+    if (idx >= 0) pool.splice(idx, 1);
+  }
+  // 12장 카드 (그림 + 단어 한 쌍씩)
+  const cards = [];
+  pairs.forEach((p, pairId) => {
+    cards.push({ pairId, word: p.word, type: "emoji", display: p.emoji });
+    cards.push({ pairId, word: p.word, type: "word",  display: p.word });
+  });
+  shuffleArray(cards);
+  state.memoryGame = {
+    cards, flipped: [], matched: 0, moves: 0, locked: false,
+  };
+  renderMemoryGrid();
+  updateMemoryInfo();
+}
+
+function renderMemoryGrid() {
+  const game = state.memoryGame;
+  memoryGridEl.innerHTML = "";
+  game.cards.forEach((c, idx) => {
+    const card = document.createElement("div");
+    card.className = "memory-card";
+    card.dataset.idx = idx;
+    card.innerHTML = `
+      <div class="memory-card-inner">
+        <div class="memory-card-face memory-card-back">?</div>
+        <div class="memory-card-face memory-card-front">
+          ${c.type === "emoji"
+            ? `<div class="memory-card-emoji">${c.display}</div>`
+            : `<div class="memory-card-word">${c.display}</div>`}
+        </div>
+      </div>
+    `;
+    card.addEventListener("click", () => onMemoryCardClick(idx));
+    memoryGridEl.appendChild(card);
+  });
+}
+
+function onMemoryCardClick(idx) {
+  const game = state.memoryGame;
+  if (!game || game.locked) return;
+  if (game.flipped.includes(idx)) return;
+  const card = memoryGridEl.querySelector(`.memory-card[data-idx="${idx}"]`);
+  if (card.classList.contains("matched")) return;
+
+  card.classList.add("flipped");
+  game.flipped.push(idx);
+
+  if (game.flipped.length === 2) {
+    game.moves++;
+    game.locked = true;
+    updateMemoryInfo();
+    const [a, b] = game.flipped;
+    const cardA = game.cards[a], cardB = game.cards[b];
+    if (cardA.pairId === cardB.pairId) {
+      // 짝 맞음
+      setTimeout(() => {
+        memoryGridEl.querySelector(`.memory-card[data-idx="${a}"]`).classList.add("matched");
+        memoryGridEl.querySelector(`.memory-card[data-idx="${b}"]`).classList.add("matched");
+        speak(cardA.word, "ko-KR");
+        addStar(1);
+        recordWord(cardA.word, true);
+        game.matched++;
+        game.flipped = [];
+        game.locked = false;
+        updateMemoryInfo();
+        if (game.matched === MEMORY_PAIR_COUNT) {
+          setTimeout(showMemoryResult, 900);
+        }
+      }, 500);
+    } else {
+      // 안 맞음
+      recordWord(cardA.word, false);
+      recordWord(cardB.word, false);
+      vibrate([15, 20, 15]);
+      setTimeout(() => {
+        memoryGridEl.querySelector(`.memory-card[data-idx="${a}"]`).classList.remove("flipped");
+        memoryGridEl.querySelector(`.memory-card[data-idx="${b}"]`).classList.remove("flipped");
+        game.flipped = [];
+        game.locked = false;
+      }, 1100);
+    }
+  }
+}
+
+function updateMemoryInfo() {
+  const game = state.memoryGame;
+  if (!game) return;
+  memoryProgressEl.textContent = `짝 ${game.matched} / ${MEMORY_PAIR_COUNT}`;
+  memoryMovesEl.textContent = `시도 ${game.moves}번`;
+}
+
+function showMemoryResult() {
+  const game = state.memoryGame;
+  document.getElementById("memoryFinalMoves").textContent = `시도 ${game.moves}번`;
+  let msg;
+  if (game.moves <= 8)       msg = "🌟 천재! 너무 잘했어요!";
+  else if (game.moves <= 12) msg = "👍 멋져요!";
+  else if (game.moves <= 18) msg = "🎊 잘 했어요!";
+  else                       msg = "💪 다시 도전!";
+  document.getElementById("memoryFinalMsg").textContent = msg;
+  // 보너스 별 (시도 수에 따라)
+  const bonus = Math.max(2, 14 - game.moves);
+  if (bonus > 0) addStar(bonus);
+  showScreen("memoryResult");
+}
+
+document.getElementById("memoryRetryBtn").addEventListener("click", () => {
+  showScreen("memory");
+  setTimeout(startMemoryGame, 50);
+});
+document.getElementById("memoryGarageBtn").addEventListener("click", () => {
+  renderGarage();
+  showScreen("garage");
+});
+document.getElementById("memoryHomeBtn").addEventListener("click", () => showScreen("home"));
+
+// ==============================
 // 부모 대시보드
 // ==============================
 function renderDashboard() {
@@ -1071,6 +1424,12 @@ document.querySelectorAll(".mode-card").forEach(btn => {
     } else if (mode === "dashboard") {
       renderDashboard();
       showScreen("dashboard");
+    } else if (mode === "mole") {
+      showScreen("mole");
+      setTimeout(startMoleGame, 50);
+    } else if (mode === "memory") {
+      showScreen("memory");
+      setTimeout(startMemoryGame, 50);
     }
   });
 });
@@ -1092,6 +1451,12 @@ document.getElementById("homeBtn").addEventListener("click", () => {
   if (state.balloonGame) {
     state.balloonGame.active = false;
     clearInterval(state.balloonGame.timerId);
+  }
+  // 두더지 게임 정리
+  if (state.moleGame) {
+    state.moleGame.active = false;
+    clearInterval(state.moleGame.timerId);
+    clearInterval(state.moleGame.spawnId);
   }
   showScreen("home");
 });

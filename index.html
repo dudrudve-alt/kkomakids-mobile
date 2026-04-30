@@ -66,6 +66,22 @@
         </div>
         <div class="mode-arrow">›</div>
       </button>
+      <button class="mode-card mode-mole" data-mode="mole">
+        <div class="mode-icon">🦝</div>
+        <div class="mode-text">
+          <div class="mode-label">두더지 잡기</div>
+          <div class="mode-desc">미션 단어 두더지 잡기</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+      <button class="mode-card mode-memory" data-mode="memory">
+        <div class="mode-icon">🃏</div>
+        <div class="mode-text">
+          <div class="mode-label">짝 맞추기</div>
+          <div class="mode-desc">그림+단어 짝 찾기</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
       <button class="mode-card mode-balloon" data-mode="balloon">
         <div class="mode-icon">🎈</div>
         <div class="mode-text">
@@ -74,19 +90,19 @@
         </div>
         <div class="mode-arrow">›</div>
       </button>
-      <button class="mode-card mode-dashboard" data-mode="dashboard">
-        <div class="mode-icon">📊</div>
-        <div class="mode-text">
-          <div class="mode-label">학습 현황</div>
-          <div class="mode-desc">부모용 - 약점 자모 분석</div>
-        </div>
-        <div class="mode-arrow">›</div>
-      </button>
       <button class="mode-card mode-garage" data-mode="garage">
         <div class="mode-icon">🚗</div>
         <div class="mode-text">
           <div class="mode-label">내 자동차</div>
           <div class="mode-desc">별 모아 자동차 모으기</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+      <button class="mode-card mode-dashboard" data-mode="dashboard">
+        <div class="mode-icon">📊</div>
+        <div class="mode-text">
+          <div class="mode-label">학습 현황</div>
+          <div class="mode-desc">부모용 - 약점 자모 분석</div>
         </div>
         <div class="mode-arrow">›</div>
       </button>
@@ -129,6 +145,108 @@
     <div class="result-buttons">
       <button id="resultRetryBtn" class="btn-primary">한 번 더 🔄</button>
       <button id="resultHomeBtn" class="btn-ghost">홈으로</button>
+    </div>
+  </section>
+
+  <!-- 두더지 잡기 화면 -->
+  <section id="screen-mole" class="screen">
+    <div class="balloon-info">
+      <div id="moleMission" class="balloon-mission">🦝 두더지 잡기</div>
+      <div class="balloon-stats">
+        <div id="moleTimer" class="balloon-timer">⏱ 40초</div>
+        <div id="moleScore" class="balloon-score">0점</div>
+      </div>
+    </div>
+    <div id="moleField" class="mole-field">
+      <div class="mole-hole" data-hole="0">
+        <div class="hole-back"></div>
+        <div class="mole">
+          <div class="mole-eyes"><span class="mole-eye"></span><span class="mole-eye"></span></div>
+          <div class="mole-nose"></div>
+          <div class="mole-word"></div>
+        </div>
+        <div class="hole-front"></div>
+      </div>
+      <div class="mole-hole" data-hole="1">
+        <div class="hole-back"></div>
+        <div class="mole">
+          <div class="mole-eyes"><span class="mole-eye"></span><span class="mole-eye"></span></div>
+          <div class="mole-nose"></div>
+          <div class="mole-word"></div>
+        </div>
+        <div class="hole-front"></div>
+      </div>
+      <div class="mole-hole" data-hole="2">
+        <div class="hole-back"></div>
+        <div class="mole">
+          <div class="mole-eyes"><span class="mole-eye"></span><span class="mole-eye"></span></div>
+          <div class="mole-nose"></div>
+          <div class="mole-word"></div>
+        </div>
+        <div class="hole-front"></div>
+      </div>
+      <div class="mole-hole" data-hole="3">
+        <div class="hole-back"></div>
+        <div class="mole">
+          <div class="mole-eyes"><span class="mole-eye"></span><span class="mole-eye"></span></div>
+          <div class="mole-nose"></div>
+          <div class="mole-word"></div>
+        </div>
+        <div class="hole-front"></div>
+      </div>
+      <div class="mole-hole" data-hole="4">
+        <div class="hole-back"></div>
+        <div class="mole">
+          <div class="mole-eyes"><span class="mole-eye"></span><span class="mole-eye"></span></div>
+          <div class="mole-nose"></div>
+          <div class="mole-word"></div>
+        </div>
+        <div class="hole-front"></div>
+      </div>
+      <div class="mole-hole" data-hole="5">
+        <div class="hole-back"></div>
+        <div class="mole">
+          <div class="mole-eyes"><span class="mole-eye"></span><span class="mole-eye"></span></div>
+          <div class="mole-nose"></div>
+          <div class="mole-word"></div>
+        </div>
+        <div class="hole-front"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 두더지 결과 화면 -->
+  <section id="screen-mole-result" class="screen">
+    <div class="result-emoji">🦝</div>
+    <div class="result-title">시간 끝!</div>
+    <div id="moleFinalScore" class="result-score">0점</div>
+    <div id="moleFinalMsg" class="result-message"></div>
+    <div class="result-buttons">
+      <button id="moleRetryBtn" class="btn-primary">한 번 더 🔄</button>
+      <button id="moleGarageBtn" class="btn-ghost">차고 보기 🚗</button>
+      <button id="moleHomeBtn" class="btn-ghost">홈으로</button>
+    </div>
+  </section>
+
+  <!-- 짝 맞추기 화면 -->
+  <section id="screen-memory" class="screen">
+    <div class="memory-header">
+      <div id="memoryProgress" class="memory-progress">짝 0 / 6</div>
+      <div id="memoryMoves" class="memory-moves">시도 0번</div>
+    </div>
+    <div id="memoryGrid" class="memory-grid"></div>
+  </section>
+
+  <!-- 짝 맞추기 결과 화면 -->
+  <section id="screen-memory-result" class="screen">
+    <div class="result-emoji">🎊</div>
+    <div class="result-title">완성!</div>
+    <div id="memoryFinalMoves" class="result-score">시도 0번</div>
+    <div id="memoryFinalMsg" class="result-message"></div>
+    <div class="result-buttons">
+      <button id="memoryRetryBtn" class="btn-primary">한 번 더 🔄</button>
+      <button id="memoryGarageBtn" class="btn-ghost">차고 보기 🚗</button>
+      <button id="memoryHomeBtn" class="btn-ghost">홈으로</button>
     </div>
   </section>
 
