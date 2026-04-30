@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 모바일 viewport: pinch-zoom 막고 viewport-fit로 노치 영역 사용 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- iOS Safari: 홈 스크린 추가 시 풀스크린 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="꼬마키즈" />
+  <meta name="theme-color" content="#fef3c7" />
+  <!-- 텍스트 선택/길게 누르기 컨텍스트 메뉴 비활성 -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>꼬마키즈</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 상단 바 -->
+  <header class="topbar">
+    <button id="homeBtn" class="icon-btn" aria-label="홈으로">🏠</button>
+    <div class="title">꼬마키즈</div>
+    <div class="stars">⭐ <span id="starCount">0</span></div>
+  </header>
+
+  <!-- 메인 화면 -->
+  <section id="screen-home" class="screen active">
+    <h1 class="welcome">무엇을 배워볼까요?</h1>
+    <div class="mode-list">
+      <button class="mode-card mode-hangul" data-mode="hangul">
+        <div class="mode-icon">ㄱㄴㄷ</div>
+        <div class="mode-text">
+          <div class="mode-label">한글 자모</div>
+          <div class="mode-desc">자음·모음 24장</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+      <button class="mode-card mode-alphabet" data-mode="alphabet">
+        <div class="mode-icon">ABC</div>
+        <div class="mode-text">
+          <div class="mode-label">영어 알파벳</div>
+          <div class="mode-desc">A-Z 26장</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+      <button class="mode-card mode-complete" data-mode="complete">
+        <div class="mode-icon">사?</div>
+        <div class="mode-text">
+          <div class="mode-label">글자 완성</div>
+          <div class="mode-desc">빠진 자모 채우기</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+    </div>
+  </section>
+
+  <!-- 카드 그리드 화면 (한글/영어 공용) -->
+  <section id="screen-grid" class="screen">
+    <div id="cardGrid" class="card-grid"></div>
+    <!-- 단어 상세 보기 (탭한 카드) -->
+    <div id="cardDetail" class="card-detail hidden">
+      <div class="card-detail-inner">
+        <div id="detailEmoji" class="detail-emoji">🍎</div>
+        <div id="detailChar" class="detail-char">ㄱ</div>
+        <div id="detailWord" class="detail-word">가방</div>
+        <button id="detailSpeakBtn" class="btn-primary">🔊 다시 듣기</button>
+        <button id="detailCloseBtn" class="btn-ghost">닫기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 글자 완성 게임 화면 -->
+  <section id="screen-complete" class="screen">
+    <div class="progress-bar">
+      <div id="progressDots" class="progress-dots"></div>
+      <div id="progressText" class="progress-text">1 / 10</div>
+    </div>
+    <div id="completeEmoji" class="complete-emoji">🦁</div>
+    <div id="syllableContainer" class="syllable-container"></div>
+    <div class="complete-question" id="completeQuestion">빠진 모음을 골라보세요</div>
+    <div id="vowelChoices" class="vowel-choices"></div>
+  </section>
+
+  <!-- 결과 화면 -->
+  <section id="screen-result" class="screen">
+    <div id="resultEmoji" class="result-emoji">🎉</div>
+    <div id="resultTitle" class="result-title">잘했어요!</div>
+    <div id="resultScore" class="result-score">8 / 10</div>
+    <div id="resultMessage" class="result-message"></div>
+    <div class="result-buttons">
+      <button id="resultRetryBtn" class="btn-primary">한 번 더 🔄</button>
+      <button id="resultHomeBtn" class="btn-ghost">홈으로</button>
+    </div>
+  </section>
+
+  <!-- 별 획득 효과 -->
+  <div id="starPop" class="star-pop">⭐</div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
