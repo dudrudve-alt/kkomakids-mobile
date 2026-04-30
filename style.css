@@ -517,7 +517,7 @@ button {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  overflow: hidden;
+  /* overflow visible — 두더지 머리가 흙 둑 위로 빠져나오게 (opacity로 숨김 처리) */
 }
 .hole-back {
   position: absolute;
@@ -557,14 +557,14 @@ button {
   bottom: -180%;
   left: 50%;
   transform: translateX(-50%);
-  width: 60%;
+  width: 70%;
   aspect-ratio: 0.95;
   background: radial-gradient(ellipse at 50% 30%, #c69876, #9b7050 55%, #6b4520);
   border-radius: 50% 50% 40% 40% / 55% 55% 20% 20%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 10%;
+  padding-top: 8%;
   gap: 2px;
   box-shadow: 0 3px 8px rgba(0,0,0,0.35), inset 0 -8px 12px rgba(0,0,0,0.22);
   transition: bottom 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -573,7 +573,7 @@ button {
   z-index: 2;
 }
 .mole-hole.active .mole {
-  bottom: 40%;
+  bottom: 70%;
   pointer-events: auto;
   opacity: 1;
   filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.6));
@@ -683,18 +683,33 @@ button {
 .memory-card-back {
   background: linear-gradient(135deg, #fbbf24, #d97706);
   color: white;
-  font-size: 56px;
+  font-size: 80px;
   font-weight: 700;
 }
 .memory-card-front {
   background: white;
   flex-direction: column;
   gap: 6px;
-  padding: 8px;
+  padding: 6px;
   transform: rotateY(180deg);
 }
-.memory-card-emoji { font-size: 64px; line-height: 1; }
-.memory-card-word  { font-size: 22px; font-weight: 700; color: #1f2937; text-align: center; line-height: 1; }
+/* 카드 폭에 비례 - 카드 밖으로 안 삐져나감 */
+.memory-card-emoji {
+  font-size: clamp(56px, 22vw, 110px);
+  line-height: 1;
+}
+.memory-card-word  {
+  font-size: clamp(28px, 8vw, 44px);
+  font-weight: 700;
+  color: #1f2937;
+  text-align: center;
+  line-height: 1;
+  word-break: keep-all;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .memory-card.matched .memory-card-front {
   background: #d1fae5;
   animation: matchPop 0.4s ease-out;
