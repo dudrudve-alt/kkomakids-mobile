@@ -32,6 +32,8 @@ const screens = {
   garage: document.getElementById("screen-garage"),
   balloon: document.getElementById("screen-balloon"),
   balloonResult: document.getElementById("screen-balloon-result"),
+  compose: document.getElementById("screen-compose"),
+  clap: document.getElementById("screen-clap"),
 };
 const starCountEl = document.getElementById("starCount");
 const cardGridEl = document.getElementById("cardGrid");
@@ -381,6 +383,8 @@ document.getElementById("resultHomeBtn").addEventListener("click", () => showScr
 // Web Audio 효과음 (펑/삐) — 외부 파일 0
 // ==============================
 let _audioCtx = null;
+let _audioWarmedUp = false;
+
 function getAudioCtx() {
   if (!_audioCtx) {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -390,6 +394,25 @@ function getAudioCtx() {
   if (_audioCtx.state === "suspended") _audioCtx.resume();
   return _audioCtx;
 }
+
+// iOS Safari 깨우기: 첫 사용자 인터랙션에서 무음 노트 재생
+function warmUpAudio() {
+  if (_audioWarmedUp) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  _audioWarmedUp = true;
+  // 무음 짧은 노트 (gain 0.0001)로 컨텍스트 활성화
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  g.gain.value = 0.0001;
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.05);
+}
+// 첫 터치/클릭 한 번만 등록 (capture로 가장 먼저)
+const _warmHandler = () => { warmUpAudio(); };
+document.addEventListener("touchstart", _warmHandler, { once: true, capture: true, passive: true });
+document.addEventListener("click",      _warmHandler, { once: true, capture: true });
 function playPopSound() {
   const ctx = getAudioCtx(); if (!ctx) return;
   const dur = 0.14;
@@ -405,6 +428,34 @@ function playPopSound() {
   src.connect(f); f.connect(g); g.connect(ctx.destination);
   src.start();
 }
+// 박수 소리 (음절 박수용)
+function playClapSound() {
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const dur = 0.08;
+  const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    const t = i / ctx.sampleRate;
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 35);
+  }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = 0.7;
+  const g = ctx.createGain(); g.gain.value = 0.55;
+  src.connect(f); f.connect(g); g.connect(ctx.destination);
+  src.start();
+}
+
+function playClapSequence(count, onDone) {
+  let i = 0;
+  function step() {
+    if (i >= count) { if (onDone) onDone(); return; }
+    playClapSound();
+    i++;
+    setTimeout(step, 380);
+  }
+  step();
+}
+
 function playWrongSound() {
   const ctx = getAudioCtx(); if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -623,6 +674,198 @@ document.getElementById("balloonGarageBtn").addEventListener("click", () => {
 document.getElementById("balloonHomeBtn").addEventListener("click", () => showScreen("home"));
 
 // ==============================
+// 자모 합성
+// ==============================
+function combineJamo(c, v, f) {
+  const ci = CONSONANT_INDEX[c];
+  const vi = VOWEL_INDEX[v];
+  if (ci === undefined || vi === undefined) return null;
+  const fi = f ? (FINAL_INDEX[f] || 0) : 0;
+  return String.fromCharCode(0xAC00 + ci * 588 + vi * 28 + fi);
+}
+
+const consonantPickerEl = document.getElementById("consonantPicker");
+const vowelPickerEl = document.getElementById("vowelPicker");
+const finalPickerEl = document.getElementById("finalPicker");
+const composeCharEl = document.getElementById("composeChar");
+const composeHintEl = document.getElementById("composeHint");
+
+state.compose = { consonant: null, vowel: null, final: null, difficulty: "easy" };
+
+function buildPicker(container, items, type) {
+  container.innerHTML = "";
+  items.forEach(ch => {
+    const btn = document.createElement("button");
+    btn.className = "picker-btn";
+    btn.textContent = ch;
+    btn.addEventListener("click", () => {
+      if (type === "final") {
+        // 받침 토글
+        if (state.compose.final === ch) {
+          state.compose.final = null;
+          btn.classList.remove("selected");
+        } else {
+          container.querySelectorAll(".picker-btn").forEach(b => b.classList.remove("selected"));
+          btn.classList.add("selected");
+          state.compose.final = ch;
+        }
+      } else {
+        container.querySelectorAll(".picker-btn").forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        if (type === "consonant") state.compose.consonant = ch;
+        else                      state.compose.vowel = ch;
+      }
+      updateComposeResult();
+    });
+    container.appendChild(btn);
+  });
+}
+
+function updateComposeResult() {
+  const { consonant: c, vowel: v, final: f } = state.compose;
+  if (c && v) {
+    const ch = combineJamo(c, v, f);
+    composeCharEl.textContent = ch;
+    speak(ch, "ko-KR");
+    addStar(1);
+    const hint = !f ? SYLLABLE_HINTS[ch] : null;
+    if (hint) {
+      composeHintEl.textContent = `${hint.emoji} ${hint.word}`;
+      setTimeout(() => speak(hint.word, "ko-KR"), 700);
+    } else if (f) {
+      composeHintEl.textContent = "받침을 다시 누르면 빠져요";
+    } else {
+      composeHintEl.textContent = "";
+    }
+  } else if (c) {
+    composeCharEl.textContent = c;
+    composeHintEl.textContent = "모음을 골라보세요";
+  } else if (v) {
+    composeCharEl.textContent = v;
+    composeHintEl.textContent = "자음을 골라보세요";
+  } else {
+    composeCharEl.textContent = "?";
+    composeHintEl.textContent = "자음과 모음을 골라보세요";
+  }
+}
+
+function applyComposeDifficulty() {
+  const easy = state.compose.difficulty === "easy";
+  buildPicker(consonantPickerEl, easy ? COMPOSE_CONSONANTS_EASY : COMPOSE_CONSONANTS_HARD, "consonant");
+  buildPicker(vowelPickerEl,     easy ? COMPOSE_VOWELS_EASY     : COMPOSE_VOWELS_HARD,     "vowel");
+  buildPicker(finalPickerEl,     easy ? COMPOSE_FINALS_EASY     : COMPOSE_FINALS_HARD,     "final");
+  document.getElementById("composeEasyBtn").classList.toggle("active", easy);
+  document.getElementById("composeHardBtn").classList.toggle("active", !easy);
+}
+
+function startCompose() {
+  state.compose = { consonant: null, vowel: null, final: null, difficulty: state.compose.difficulty || "easy" };
+  applyComposeDifficulty();
+  updateComposeResult();
+  showScreen("compose");
+}
+
+document.getElementById("composeEasyBtn").addEventListener("click", () => {
+  state.compose.difficulty = "easy";
+  state.compose.consonant = state.compose.vowel = state.compose.final = null;
+  applyComposeDifficulty();
+  updateComposeResult();
+});
+document.getElementById("composeHardBtn").addEventListener("click", () => {
+  state.compose.difficulty = "hard";
+  state.compose.consonant = state.compose.vowel = state.compose.final = null;
+  applyComposeDifficulty();
+  updateComposeResult();
+});
+
+// ==============================
+// 음절 박수
+// ==============================
+const clapEmojiEl = document.getElementById("clapEmoji");
+const clapWordEl = document.getElementById("clapWord");
+const clapButtonsEl = document.getElementById("clapButtons");
+const clapFeedbackEl = document.getElementById("clapFeedback");
+state.clap = null;
+
+function splitKoreanSyllables(word) {
+  return [...word].filter(c => {
+    const code = c.charCodeAt(0);
+    return code >= 0xAC00 && code <= 0xD7A3;
+  });
+}
+
+function speakSyllablesWithClaps(word) {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const sylls = splitKoreanSyllables(word);
+  if (sylls.length === 0) return;
+  let i = 0;
+  function next() {
+    if (i >= sylls.length) return;
+    const u = new SpeechSynthesisUtterance(sylls[i]);
+    u.lang = "ko-KR";
+    u.rate = 0.85;
+    u.pitch = 1.1;
+    u.onstart = () => playClapSound();
+    u.onend = () => { i++; setTimeout(next, 220); };
+    u.onerror = () => { i++; setTimeout(next, 220); };
+    window.speechSynthesis.speak(u);
+  }
+  next();
+}
+
+function loadClapQuestion() {
+  const item = SYLLABLE_WORDS[Math.floor(Math.random() * SYLLABLE_WORDS.length)];
+  state.clap = { item, answered: false };
+  clapEmojiEl.textContent = item.emoji;
+  clapWordEl.textContent = item.word;
+  clapFeedbackEl.textContent = "";
+  // 보기 4개 (1-5 중 정답 + 무작위 3개)
+  const correct = item.count;
+  const others = [1,2,3,4,5].filter(n => n !== correct);
+  shuffleArray(others);
+  const choices = [correct, ...others.slice(0, 3)].sort((a, b) => a - b);
+
+  clapButtonsEl.innerHTML = "";
+  choices.forEach(n => {
+    const btn = document.createElement("button");
+    btn.className = "clap-btn";
+    btn.textContent = "👏".repeat(n) + " " + n;
+    btn.addEventListener("click", () => handleClapAnswer(btn, n, correct));
+    clapButtonsEl.appendChild(btn);
+  });
+
+  setTimeout(() => speakSyllablesWithClaps(item.word), 250);
+}
+
+function handleClapAnswer(btn, chosen, correct) {
+  if (!state.clap || state.clap.answered) return;
+
+  if (chosen === correct) {
+    state.clap.answered = true;
+    btn.classList.add("correct");
+    clapFeedbackEl.textContent = "🎉 잘했어요!";
+    addStar(1);
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    playClapSequence(correct, () => {
+      setTimeout(loadClapQuestion, 600);
+    });
+  } else {
+    btn.classList.add("wrong");
+    clapFeedbackEl.textContent = "한 번 더!";
+    vibrate([20, 30, 20]);
+    speakSyllablesWithClaps(state.clap.item.word);
+    setTimeout(() => btn.classList.remove("wrong"), 500);
+    // lock 안 거니까 다시 시도 가능
+  }
+}
+
+document.getElementById("nextClapBtn").addEventListener("click", () => {
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  loadClapQuestion();
+});
+
+// ==============================
 // 메인 모드 선택
 // ==============================
 document.querySelectorAll(".mode-card").forEach(btn => {
@@ -643,6 +886,11 @@ document.querySelectorAll(".mode-card").forEach(btn => {
     } else if (mode === "balloon") {
       showScreen("balloon");
       setTimeout(startBalloonGame, 50);
+    } else if (mode === "compose") {
+      startCompose();
+    } else if (mode === "clap") {
+      showScreen("clap");
+      setTimeout(loadClapQuestion, 50);
     }
   });
 });

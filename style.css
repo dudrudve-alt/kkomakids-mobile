@@ -156,6 +156,8 @@ button {
 .mode-complete { background: linear-gradient(135deg, #fb7185, #e11d48); }
 .mode-balloon  { background: linear-gradient(135deg, #f87171, #dc2626); }
 .mode-garage   { background: linear-gradient(135deg, #818cf8, #4f46e5); }
+.mode-compose  { background: linear-gradient(135deg, #a78bfa, #8b5cf6); }
+.mode-clap     { background: linear-gradient(135deg, #34d399, #10b981); }
 
 /* === 카드 그리드 (한글/영어) === */
 #screen-grid.active {
@@ -485,6 +487,166 @@ button {
 
 .hidden { display: none !important; }
 
+/* === 자모 합성 === */
+#screen-compose.active {
+  align-items: center;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.compose-difficulty {
+  display: flex;
+  gap: 4px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+.diff-btn {
+  padding: 6px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b7280;
+  min-height: 36px;
+  transition: all 0.15s;
+}
+.diff-btn.active {
+  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+  color: white;
+  box-shadow: 0 2px 6px rgba(139,92,246,0.4);
+}
+
+.compose-result {
+  background: white;
+  border-radius: 18px;
+  padding: 12px 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+.compose-char {
+  font-size: 64px;
+  font-weight: 700;
+  color: #8b5cf6;
+  line-height: 1;
+}
+.compose-hint {
+  font-size: 14px;
+  color: #6b7280;
+  min-height: 20px;
+  text-align: center;
+}
+
+.compose-pickers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  flex-shrink: 0;
+}
+.picker-row {
+  display: flex;
+  gap: 8px;
+}
+.picker-col {
+  flex: 1;
+  background: white;
+  border-radius: 14px;
+  padding: 10px 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.picker-final {
+  background: white;
+  border-radius: 14px;
+  padding: 10px 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.picker-label {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.picker-grid-final {
+  grid-template-columns: repeat(8, 1fr);
+}
+.picker-btn {
+  aspect-ratio: 1;
+  background: #f9fafb;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+  border: 2px solid transparent;
+  min-height: 36px;
+  transition: all 0.1s;
+}
+.picker-btn:active { transform: scale(0.92); }
+.picker-btn.selected {
+  background: #ede9fe;
+  border-color: #8b5cf6;
+}
+
+/* === 음절 박수 === */
+#screen-clap.active {
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.clap-card {
+  background: white;
+  border-radius: 24px;
+  padding: 20px 28px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+.clap-emoji { font-size: 80px; line-height: 1; }
+.clap-word  { font-size: 36px; font-weight: 700; color: #1f2937; }
+.clap-question { font-size: 16px; color: #6b7280; margin-top: 4px; }
+
+.clap-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+.clap-btn {
+  background: #f3f4f6;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  padding: 14px 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+  min-height: 56px;
+  transition: all 0.15s;
+}
+.clap-btn:active { transform: scale(0.95); }
+.clap-btn.correct { background: #d1fae5; border-color: #10b981; }
+.clap-btn.wrong   { background: #fee2e2; border-color: #ef4444; animation: shake 0.4s; }
+.clap-feedback {
+  font-size: 22px;
+  min-height: 28px;
+}
+
 /* === 별 카운트 클릭 가능 (차고 바로가기) === */
 .stars {
   cursor: pointer;
@@ -537,18 +699,21 @@ button {
 
 .garage-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px;
   background: linear-gradient(180deg, #cbd5e1, #94a3b8);
   border-radius: 18px;
   padding: 12px;
   -webkit-overflow-scrolling: touch;
+  align-content: start; /* 카드들이 겹치지 않게 위에서부터 쌓이도록 */
 }
-@media (min-width: 480px) {
+@media (min-width: 380px) {
+  .garage-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 600px) {
   .garage-grid { grid-template-columns: repeat(4, 1fr); }
 }
 

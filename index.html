@@ -50,6 +50,22 @@
         </div>
         <div class="mode-arrow">›</div>
       </button>
+      <button class="mode-card mode-compose" data-mode="compose">
+        <div class="mode-icon">ㄱ+ㅏ</div>
+        <div class="mode-text">
+          <div class="mode-label">자모 합성</div>
+          <div class="mode-desc">자음·모음 조합해 글자 만들기</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+      <button class="mode-card mode-clap" data-mode="clap">
+        <div class="mode-icon">👏</div>
+        <div class="mode-text">
+          <div class="mode-label">음절 박수</div>
+          <div class="mode-desc">단어 박수 횟수 맞히기</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
       <button class="mode-card mode-balloon" data-mode="balloon">
         <div class="mode-icon">🎈</div>
         <div class="mode-text">
@@ -106,6 +122,46 @@
       <button id="resultRetryBtn" class="btn-primary">한 번 더 🔄</button>
       <button id="resultHomeBtn" class="btn-ghost">홈으로</button>
     </div>
+  </section>
+
+  <!-- 자모 합성 화면 -->
+  <section id="screen-compose" class="screen">
+    <div class="compose-difficulty">
+      <button id="composeEasyBtn" class="diff-btn active">쉬움</button>
+      <button id="composeHardBtn" class="diff-btn">어려움</button>
+    </div>
+    <div class="compose-result">
+      <div id="composeChar" class="compose-char">?</div>
+      <div id="composeHint" class="compose-hint"></div>
+    </div>
+    <div class="compose-pickers">
+      <div class="picker-row">
+        <div class="picker-col">
+          <div class="picker-label">자음</div>
+          <div id="consonantPicker" class="picker-grid"></div>
+        </div>
+        <div class="picker-col">
+          <div class="picker-label">모음</div>
+          <div id="vowelPicker" class="picker-grid"></div>
+        </div>
+      </div>
+      <div class="picker-final">
+        <div class="picker-label">받침 (눌러서 추가/제거)</div>
+        <div id="finalPicker" class="picker-grid picker-grid-final"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 음절 박수 화면 -->
+  <section id="screen-clap" class="screen">
+    <div class="clap-card">
+      <div id="clapEmoji" class="clap-emoji">🍎</div>
+      <div id="clapWord" class="clap-word">사과</div>
+      <div class="clap-question">박수 몇 번?</div>
+      <div id="clapButtons" class="clap-buttons"></div>
+      <div id="clapFeedback" class="clap-feedback"></div>
+    </div>
+    <button id="nextClapBtn" class="btn-primary">다음 ▶</button>
   </section>
 
   <!-- 자동차 차고 화면 -->
