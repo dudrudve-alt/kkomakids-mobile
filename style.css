@@ -683,18 +683,18 @@ button {
 .memory-card-back {
   background: linear-gradient(135deg, #fbbf24, #d97706);
   color: white;
-  font-size: 28px;
+  font-size: 56px;
   font-weight: 700;
 }
 .memory-card-front {
   background: white;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px;
+  gap: 6px;
+  padding: 8px;
   transform: rotateY(180deg);
 }
-.memory-card-emoji { font-size: 28px; }
-.memory-card-word  { font-size: 13px; font-weight: 700; color: #1f2937; text-align: center; }
+.memory-card-emoji { font-size: 64px; line-height: 1; }
+.memory-card-word  { font-size: 22px; font-weight: 700; color: #1f2937; text-align: center; line-height: 1; }
 .memory-card.matched .memory-card-front {
   background: #d1fae5;
   animation: matchPop 0.4s ease-out;
