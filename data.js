@@ -118,6 +118,20 @@ const WORD_PAIRS = [
   { word: "기차",   emoji: "🚂" },
 ];
 
+// === 단어 카드 (한글 + 영어) ===
+const WORDS = [
+  { ko: "사과",   en: "Apple",  emoji: "🍎" },
+  { ko: "강아지", en: "Dog",    emoji: "🐶" },
+  { ko: "고양이", en: "Cat",    emoji: "🐱" },
+  { ko: "자동차", en: "Car",    emoji: "🚗" },
+  { ko: "책",     en: "Book",   emoji: "📖" },
+  { ko: "꽃",     en: "Flower", emoji: "🌸" },
+  { ko: "물",     en: "Water",  emoji: "💧" },
+  { ko: "해",     en: "Sun",    emoji: "☀️" },
+  { ko: "달",     en: "Moon",   emoji: "🌙" },
+  { ko: "별",     en: "Star",   emoji: "⭐" },
+];
+
 // === 자모 합성 (한글 자음+모음+받침 결합) ===
 // 한글 음절 = 0xAC00 + (자음 인덱스 × 588) + (모음 인덱스 × 28) + 종성
 const CONSONANT_INDEX = {

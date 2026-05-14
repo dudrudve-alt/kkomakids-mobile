@@ -3,13 +3,63 @@
 // ==============================
 
 // === 학습 통계 시스템 ===
-// stats: { jamo: { ㄱ: {correct, wrong}, ... }, daily: { "2026-04-30": {correct, wrong} }, totalCorrect, totalWrong }
-let stats = { jamo: {}, daily: {}, totalCorrect: 0, totalWrong: 0 };
+// stats: {
+//   attempts: { total, correct, wrong, daily: { "2026-04-30": {total, correct, wrong} } },
+//   jamo: { ㄱ: {correct, wrong}, ... },
+//   gameWords: { 사과: {correct, wrong, byMode: {balloon: {correct, wrong}}}, ... }
+// }
+function createEmptyStats() {
+  return {
+    attempts: { total: 0, correct: 0, wrong: 0, daily: {} },
+    jamo: {},
+    gameWords: {},
+  };
+}
+
+let stats = createEmptyStats();
+
+function normalizeDaily(rawDaily = {}) {
+  const daily = {};
+  Object.entries(rawDaily).forEach(([day, s]) => {
+    const correct = Number(s?.correct || 0);
+    const wrong = Number(s?.wrong || 0);
+    daily[day] = {
+      total: Number(s?.total || correct + wrong),
+      correct,
+      wrong,
+    };
+  });
+  return daily;
+}
+
+function normalizeStats(raw) {
+  const next = createEmptyStats();
+  if (!raw || typeof raw !== "object") return next;
+
+  next.jamo = raw.jamo && typeof raw.jamo === "object" ? raw.jamo : {};
+  next.gameWords = raw.gameWords && typeof raw.gameWords === "object" ? raw.gameWords : {};
+
+  if (raw.attempts && typeof raw.attempts === "object") {
+    const correct = Number(raw.attempts.correct || 0);
+    const wrong = Number(raw.attempts.wrong || 0);
+    next.attempts = {
+      total: Number(raw.attempts.total || correct + wrong),
+      correct,
+      wrong,
+      daily: normalizeDaily(raw.attempts.daily),
+    };
+    return next;
+  }
+
+  // Legacy shape: { jamo, daily, totalCorrect, totalWrong }.
+  // Old totals were jamo-event counts, not problem attempts, so start fresh.
+  return next;
+}
 
 function _loadStats() {
   try {
     const raw = localStorage.getItem("kkomakids_m_stats");
-    if (raw) stats = JSON.parse(raw);
+    if (raw) stats = normalizeStats(JSON.parse(raw));
   } catch (_) {}
 }
 function saveStats() {
@@ -21,30 +71,50 @@ function todayKey() {
 }
 _loadStats();
 
+// 문제/액션 단위 정답/오답 기록
+function recordAttempt(isCorrect) {
+  stats.attempts.total++;
+  if (isCorrect) stats.attempts.correct++;
+  else           stats.attempts.wrong++;
+
+  const k = todayKey();
+  if (!stats.attempts.daily[k]) stats.attempts.daily[k] = { total: 0, correct: 0, wrong: 0 };
+  stats.attempts.daily[k].total++;
+  if (isCorrect) stats.attempts.daily[k].correct++;
+  else           stats.attempts.daily[k].wrong++;
+  saveStats();
+}
+
 // 자모 단위 정답/오답 기록
 function recordJamo(jamo, isCorrect) {
   if (!jamo) return;
   if (!stats.jamo[jamo]) stats.jamo[jamo] = { correct: 0, wrong: 0 };
-  if (isCorrect) { stats.jamo[jamo].correct++; stats.totalCorrect++; }
-  else           { stats.jamo[jamo].wrong++;   stats.totalWrong++; }
-  const k = todayKey();
-  if (!stats.daily[k]) stats.daily[k] = { correct: 0, wrong: 0 };
-  if (isCorrect) stats.daily[k].correct++;
-  else           stats.daily[k].wrong++;
+  if (isCorrect) stats.jamo[jamo].correct++;
+  else           stats.jamo[jamo].wrong++;
   saveStats();
 }
 
-// 단어의 모든 자모를 한 번에 기록
-function recordWord(word, isCorrect) {
-  for (const ch of word) {
-    const code = ch.charCodeAt(0);
-    if (code < 0xAC00 || code > 0xD7A3) continue;
-    const d = decomposeSyllable(ch);
-    if (!d) continue;
-    recordJamo(d.consonant, isCorrect);
-    recordJamo(d.vowel, isCorrect);
-    if (d.hasFinal && d.final) recordJamo(d.final, isCorrect);
+// 게임에서 맞히거나 틀린 단어 기록. 자모 약점에는 반영하지 않는다.
+function recordGameWord(word, isCorrect, mode = "game") {
+  if (!word) return;
+  if (!stats.gameWords[word]) {
+    stats.gameWords[word] = { correct: 0, wrong: 0, byMode: {} };
   }
+  if (!stats.gameWords[word].byMode) stats.gameWords[word].byMode = {};
+  if (!stats.gameWords[word].byMode[mode]) {
+    stats.gameWords[word].byMode[mode] = { correct: 0, wrong: 0 };
+  }
+
+  const wordStats = stats.gameWords[word];
+  const modeStats = wordStats.byMode[mode];
+  if (isCorrect) {
+    wordStats.correct++;
+    modeStats.correct++;
+  } else {
+    wordStats.wrong++;
+    modeStats.wrong++;
+  }
+  saveStats();
 }
 
 // 자모 가중치 (오답률 높을수록 우선 출제)
@@ -88,6 +158,23 @@ function pickWeightedWord(pool, exclude = []) {
   return pickWeighted(cand, p => wordWeight(p.word));
 }
 
+function getWeakJamos(limit = 8) {
+  return Object.entries(stats.jamo)
+    .map(([ch, s]) => ({
+      ch,
+      correct: s.correct || 0,
+      wrong: s.wrong || 0,
+      tries: (s.correct || 0) + (s.wrong || 0),
+      errorRate: ((s.correct || 0) + (s.wrong || 0)) > 0
+        ? (s.wrong || 0) / ((s.correct || 0) + (s.wrong || 0))
+        : 0,
+    }))
+    .filter(e => e.wrong > 0 && e.tries >= 2)
+    .sort((a, b) => b.errorRate - a.errorRate || b.wrong - a.wrong || b.tries - a.tries)
+    .slice(0, limit)
+    .map(e => e.ch);
+}
+
 // === 안전한 localStorage ===
 const safeStorage = {
   get(key, fallback = null) {
@@ -98,9 +185,37 @@ const safeStorage = {
   },
 };
 
+const WORD_REWARDS_KEY = "kkomakids_m_word_rewards";
+const COMPOSE_REWARDS_KEY = "kkomakids_m_compose_rewards";
+
+function loadRewardSet(key) {
+  try {
+    const raw = safeStorage.get(key, "[]");
+    const values = JSON.parse(raw || "[]");
+    return new Set(Array.isArray(values) ? values : []);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function saveRewardSet(key, set) {
+  safeStorage.set(key, JSON.stringify([...set]));
+}
+
+function addStarOnce(rewardSet, storageKey, rewardKey, amount = 1) {
+  if (rewardSet.has(rewardKey)) return false;
+  rewardSet.add(rewardKey);
+  saveRewardSet(storageKey, rewardSet);
+  addStar(amount);
+  return true;
+}
+
 // === 상태 ===
 const state = {
   stars: parseInt(safeStorage.get("kkomakids_m_stars", "0") || "0", 10),
+  wordIndex: 0,
+  wordRewards: loadRewardSet(WORD_REWARDS_KEY),
+  composeRewards: loadRewardSet(COMPOSE_REWARDS_KEY),
   recentWords: [],
   questionIndex: 0,
   correctCount: 0,
@@ -113,6 +228,7 @@ const state = {
 const screens = {
   home: document.getElementById("screen-home"),
   grid: document.getElementById("screen-grid"),
+  word: document.getElementById("screen-word"),
   complete: document.getElementById("screen-complete"),
   result: document.getElementById("screen-result"),
   garage: document.getElementById("screen-garage"),
@@ -258,6 +374,44 @@ cardDetailEl.addEventListener("click", (e) => {
 });
 
 // ==============================
+// 단어 카드 (한글 + 영어)
+// ==============================
+const wordEmojiEl = document.getElementById("wordEmoji");
+const wordKoEl = document.getElementById("wordKo");
+const wordEnEl = document.getElementById("wordEn");
+
+function renderWord() {
+  const w = WORDS[state.wordIndex];
+  wordEmojiEl.textContent = w.emoji;
+  wordKoEl.textContent = w.ko;
+  wordEnEl.textContent = w.en;
+}
+
+function speakCurrentWord() {
+  const w = WORDS[state.wordIndex];
+  speak(w.ko, "ko-KR");
+  setTimeout(() => {
+    if (!("speechSynthesis" in window)) return;
+    const utter = new SpeechSynthesisUtterance(w.en);
+    utter.lang = "en-US";
+    utter.rate = 0.85;
+    utter.pitch = 1.05;
+    window.speechSynthesis.speak(utter);
+  }, 900);
+  addStarOnce(state.wordRewards, WORD_REWARDS_KEY, w.ko);
+}
+
+document.getElementById("prevWord").addEventListener("click", () => {
+  state.wordIndex = (state.wordIndex - 1 + WORDS.length) % WORDS.length;
+  renderWord();
+});
+document.getElementById("nextWord").addEventListener("click", () => {
+  state.wordIndex = (state.wordIndex + 1) % WORDS.length;
+  renderWord();
+});
+document.getElementById("speakWord").addEventListener("click", speakCurrentWord);
+
+// ==============================
 // 글자 완성 게임
 // ==============================
 const QUESTIONS_PER_LEVEL = 10;
@@ -296,6 +450,40 @@ function shuffleArray(arr) {
   return arr;
 }
 
+function getCompletionJamoPositions(syllables) {
+  const positions = [];
+  syllables.forEach((syl, syllableIndex) => {
+    const target = decomposeSyllable(syl);
+    if (!target) return;
+    if (SIMPLE_CONSONANTS.includes(target.consonant)) {
+      positions.push({
+        syllableIndex,
+        type: "consonant",
+        jamo: target.consonant,
+        target,
+      });
+    }
+    if (SIMPLE_VOWELS.includes(target.vowel)) {
+      positions.push({
+        syllableIndex,
+        type: "vowel",
+        jamo: target.vowel,
+        target,
+      });
+    }
+  });
+  return positions;
+}
+
+function pickCompletionMissingPosition(syllables) {
+  const positions = getCompletionJamoPositions(syllables);
+  const weakSet = new Set(getWeakJamos());
+  const weakPositions = positions.filter(p => weakSet.has(p.jamo));
+  const candidates = weakPositions.length > 0 ? weakPositions : positions;
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 function startCompleteGame() {
   state.questionIndex = 0;
   state.correctCount = 0;
@@ -329,18 +517,28 @@ function generateCompletionPuzzle() {
   if (state.recentWords.length > 5) state.recentWords.shift();
 
   const syllables = [...puzzle.word];
-  const missingIdx = Math.random() < 0.5 ? 0 : 1;
-  const missingType = Math.random() < 0.5 ? "vowel" : "consonant";
-  const target = decomposeSyllable(syllables[missingIdx]);
+  let missing = pickCompletionMissingPosition(syllables);
+  if (!missing) {
+    const fallbackTarget = decomposeSyllable(syllables[0]) || { consonant: "ㅇ", vowel: "ㅏ" };
+    missing = {
+      syllableIndex: 0,
+      type: "vowel",
+      jamo: fallbackTarget.vowel,
+      target: fallbackTarget,
+    };
+  }
+  const missingIdx = missing.syllableIndex;
+  const missingType = missing.type;
+  const target = missing.target;
 
   let correctAnswer, choices;
   if (missingType === "vowel") {
-    correctAnswer = target.vowel;
+    correctAnswer = missing.jamo;
     const others = SIMPLE_VOWELS.filter(v => v !== correctAnswer);
     shuffleArray(others);
     choices = shuffleArray([correctAnswer, ...others.slice(0, 3)]);
   } else {
-    correctAnswer = target.consonant;
+    correctAnswer = missing.jamo;
     // 헷갈리는 자음 페어 동시 출현 방지
     const CONFUSING = {
       "ㄷ":"ㅌ","ㅌ":"ㄷ","ㅂ":"ㅍ","ㅍ":"ㅂ",
@@ -417,6 +615,7 @@ function handleCompletionAnswer(btn, chosen) {
     state.results.push(true);
     state.correctCount++;
     addStar(1);
+    recordAttempt(true);
     recordJamo(p.correctAnswer, true); // 통계: 정답
     box.classList.remove("missing", "vowel-vertical", "vowel-horizontal");
     box.classList.add("revealed");
@@ -427,6 +626,7 @@ function handleCompletionAnswer(btn, chosen) {
   } else {
     btn.classList.add("wrong");
     state.results.push(false);
+    recordAttempt(false);
     recordJamo(p.correctAnswer, false); // 통계: 약점 기록
     vibrate([20, 30, 20]); // 오답 진동
     setTimeout(() => {
@@ -697,7 +897,8 @@ function onBalloonClick(el, balloon) {
     game.score += 10;
     addStar(1);
     playPopSound();
-    recordWord(balloon.word, true); // 통계
+    recordAttempt(true);
+    recordGameWord(balloon.word, true, "balloon"); // 게임 단어 통계
     showBurst(el);
     updateBalloonStats();
     game.correctRemaining--;
@@ -708,7 +909,8 @@ function onBalloonClick(el, balloon) {
   } else {
     el.classList.add("wrong");
     playWrongSound();
-    recordWord(balloon.word, false); // 통계: 잘못 누른 단어 약점
+    recordAttempt(false);
+    recordGameWord(balloon.word, false, "balloon"); // 게임 단어 통계
     vibrate([20, 30, 20]);
     game.timeLeft = Math.max(0, game.timeLeft - 2);
     updateBalloonStats();
@@ -825,7 +1027,7 @@ function updateComposeResult() {
     const ch = combineJamo(c, v, f);
     composeCharEl.textContent = ch;
     speak(ch, "ko-KR");
-    addStar(1);
+    addStarOnce(state.composeRewards, COMPOSE_REWARDS_KEY, ch);
     const hint = !f ? SYLLABLE_HINTS[ch] : null;
     if (hint) {
       composeHintEl.textContent = `${hint.emoji} ${hint.word}`;
@@ -944,7 +1146,8 @@ function handleClapAnswer(btn, chosen, correct) {
     btn.classList.add("correct");
     clapFeedbackEl.textContent = "🎉 잘했어요!";
     addStar(1);
-    recordWord(state.clap.item.word, true); // 통계
+    recordAttempt(true);
+    recordGameWord(state.clap.item.word, true, "clap"); // 게임 단어 통계
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     playClapSequence(correct, () => {
       setTimeout(loadClapQuestion, 600);
@@ -952,7 +1155,8 @@ function handleClapAnswer(btn, chosen, correct) {
   } else {
     btn.classList.add("wrong");
     clapFeedbackEl.textContent = "한 번 더!";
-    recordWord(state.clap.item.word, false); // 통계
+    recordAttempt(false);
+    recordGameWord(state.clap.item.word, false, "clap"); // 게임 단어 통계
     vibrate([20, 30, 20]);
     speakSyllablesWithClaps(state.clap.item.word);
     setTimeout(() => btn.classList.remove("wrong"), 500);
@@ -1007,12 +1211,36 @@ function isWordMatchingMission(word, mission) {
   return false;
 }
 
+function scheduleMoleTimeout(game, callback, delay) {
+  const id = setTimeout(() => {
+    game.timeoutIds.delete(id);
+    if (state.moleGame !== game) return;
+    callback();
+  }, delay);
+  game.timeoutIds.add(id);
+  return id;
+}
+
+function stopMoleGame() {
+  const game = state.moleGame;
+  if (!game) return;
+  game.active = false;
+  clearInterval(game.timerId);
+  clearInterval(game.spawnId);
+  if (game.timeoutIds) {
+    game.timeoutIds.forEach(id => clearTimeout(id));
+    game.timeoutIds.clear();
+  }
+}
+
 function startMoleGame() {
+  stopMoleGame();
   state.moleGame = {
     score: 0, timeLeft: MOLE_DURATION, round: 0,
     timerId: null, spawnId: null,
     holeStates: Array(MOLE_HOLE_COUNT).fill(null),
     active: true, mission: null,
+    timeoutIds: new Set(),
   };
   pickMoleTarget();
   bindMoleHoles();
@@ -1085,20 +1313,19 @@ function spawnMole() {
   hole.classList.add("active");
 
   const lifetime = MOLE_LIFETIME_MIN + Math.random() * (MOLE_LIFETIME_MAX - MOLE_LIFETIME_MIN);
-  setTimeout(() => {
-    if (game.holeStates[idx] === wordItem) hideMole(idx);
+  scheduleMoleTimeout(game, () => {
+    if (game.active && game.holeStates[idx] === wordItem) hideMole(idx, game);
   }, lifetime);
 }
 
-function hideMole(idx) {
-  const game = state.moleGame;
-  if (!game) return;
+function hideMole(idx, game = state.moleGame) {
+  if (!game || state.moleGame !== game) return;
   game.holeStates[idx] = null;
   const hole = moleFieldEl.querySelector(`.mole-hole[data-hole="${idx}"]`);
   if (!hole) return;
   hole.classList.remove("active", "bonked", "miss");
   const wordEl = hole.querySelector(".mole-word");
-  setTimeout(() => {
+  scheduleMoleTimeout(game, () => {
     if (!hole.classList.contains("active") && wordEl) wordEl.textContent = "";
   }, 250);
 }
@@ -1116,17 +1343,19 @@ function onMoleHoleClick(idx) {
     game.score += 10;
     addStar(1);
     playPopSound();
-    recordWord(wordItem.word, true);
+    recordAttempt(true);
+    recordGameWord(wordItem.word, true, "mole");
     updateMoleStats();
-    setTimeout(() => hideMole(idx), 280);
+    scheduleMoleTimeout(game, () => hideMole(idx, game), 280);
   } else {
     hole.classList.add("miss");
     playWrongSound();
-    recordWord(wordItem.word, false);
+    recordAttempt(false);
+    recordGameWord(wordItem.word, false, "mole");
     vibrate([20, 30, 20]);
     game.timeLeft = Math.max(0, game.timeLeft - 2);
     updateMoleStats();
-    setTimeout(() => hole.classList.remove("miss"), 300);
+    scheduleMoleTimeout(game, () => hole.classList.remove("miss"), 300);
   }
 }
 
@@ -1154,9 +1383,7 @@ function updateMoleStats() {
 function endMoleGame() {
   const game = state.moleGame;
   if (!game) return;
-  game.active = false;
-  clearInterval(game.timerId);
-  clearInterval(game.spawnId);
+  stopMoleGame();
   const bonus = Math.floor(game.score / 30);
   if (bonus > 0) addStar(bonus);
   document.getElementById("moleFinalScore").textContent = `점수 ${game.score}`;
@@ -1257,7 +1484,8 @@ function onMemoryCardClick(idx) {
         memoryGridEl.querySelector(`.memory-card[data-idx="${b}"]`).classList.add("matched");
         speak(cardA.word, "ko-KR");
         addStar(1);
-        recordWord(cardA.word, true);
+        recordAttempt(true);
+        recordGameWord(cardA.word, true, "memory");
         game.matched++;
         game.flipped = [];
         game.locked = false;
@@ -1268,8 +1496,9 @@ function onMemoryCardClick(idx) {
       }, 500);
     } else {
       // 안 맞음
-      recordWord(cardA.word, false);
-      recordWord(cardB.word, false);
+      recordAttempt(false);
+      recordGameWord(cardA.word, false, "memory");
+      recordGameWord(cardB.word, false, "memory");
       vibrate([15, 20, 15]);
       setTimeout(() => {
         memoryGridEl.querySelector(`.memory-card[data-idx="${a}"]`).classList.remove("flipped");
@@ -1317,10 +1546,10 @@ document.getElementById("memoryHomeBtn").addEventListener("click", () => showScr
 // 부모 대시보드
 // ==============================
 function renderDashboard() {
-  const total = stats.totalCorrect + stats.totalWrong;
-  const accuracy = total > 0 ? Math.round((stats.totalCorrect / total) * 100) : 0;
-  const today = stats.daily[todayKey()] || { correct: 0, wrong: 0 };
-  const todayTotal = today.correct + today.wrong;
+  const total = stats.attempts.total;
+  const accuracy = total > 0 ? Math.round((stats.attempts.correct / total) * 100) : 0;
+  const today = stats.attempts.daily[todayKey()] || { total: 0, correct: 0, wrong: 0 };
+  const todayTotal = today.total;
 
   document.getElementById("dashTotal").textContent = total;
   document.getElementById("dashAccuracy").textContent = accuracy + "%";
@@ -1341,10 +1570,26 @@ function renderDashboard() {
     .sort((a, b) => a.errorRate - b.errorRate || b.correct - a.correct)
     .slice(0, 8);
 
+  const gameWeakWords = Object.entries(stats.gameWords || {})
+    .map(([word, s]) => ({
+      word,
+      correct: s.correct || 0,
+      wrong: s.wrong || 0,
+      tries: (s.correct || 0) + (s.wrong || 0),
+      errorRate: ((s.correct || 0) + (s.wrong || 0)) > 0
+        ? (s.wrong || 0) / ((s.correct || 0) + (s.wrong || 0))
+        : 0,
+    }))
+    .filter(e => e.wrong > 0)
+    .sort((a, b) => b.errorRate - a.errorRate || b.wrong - a.wrong || b.tries - a.tries)
+    .slice(0, 8);
+
   const weakEl = document.getElementById("dashWeakness");
   const strongEl = document.getElementById("dashStrength");
+  const gameWordsEl = document.getElementById("dashGameWords");
   weakEl.innerHTML = "";
   strongEl.innerHTML = "";
+  gameWordsEl.innerHTML = "";
   if (weakness.length === 0) {
     weakEl.innerHTML = '<div class="dash-empty">아직 데이터가 부족해요</div>';
   } else {
@@ -1365,6 +1610,16 @@ function renderDashboard() {
       strongEl.appendChild(div);
     });
   }
+  if (gameWeakWords.length === 0) {
+    gameWordsEl.innerHTML = '<div class="dash-empty">아직 데이터가 부족해요</div>';
+  } else {
+    gameWeakWords.forEach(e => {
+      const div = document.createElement("div");
+      div.className = "dash-word weak";
+      div.innerHTML = `<span class="word">${e.word}</span><span class="stat">${e.wrong}/${e.tries}</span>`;
+      gameWordsEl.appendChild(div);
+    });
+  }
 
   // 최근 7일 추이
   const dailyEl = document.getElementById("dashDaily");
@@ -1374,8 +1629,8 @@ function renderDashboard() {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-    const s = stats.daily[k] || { correct: 0, wrong: 0 };
-    days.push({ d, k, total: s.correct + s.wrong });
+    const s = stats.attempts.daily[k] || { total: 0, correct: 0, wrong: 0 };
+    days.push({ d, k, total: s.total });
   }
   const max = Math.max(1, ...days.map(x => x.total));
   days.forEach(x => {
@@ -1390,7 +1645,7 @@ function renderDashboard() {
 
 document.getElementById("dashResetBtn").addEventListener("click", () => {
   if (!confirm("학습 통계를 모두 초기화할까요?")) return;
-  stats = { jamo: {}, daily: {}, totalCorrect: 0, totalWrong: 0 };
+  stats = createEmptyStats();
   saveStats();
   renderDashboard();
 });
@@ -1408,6 +1663,10 @@ document.querySelectorAll(".mode-card").forEach(btn => {
     } else if (mode === "alphabet") {
       renderCardGrid(ALPHABET, "alphabet");
       showScreen("grid");
+    } else if (mode === "words") {
+      state.wordIndex = 0;
+      renderWord();
+      showScreen("word");
     } else if (mode === "complete") {
       startCompleteGame();
     } else if (mode === "garage") {
@@ -1453,11 +1712,7 @@ document.getElementById("homeBtn").addEventListener("click", () => {
     clearInterval(state.balloonGame.timerId);
   }
   // 두더지 게임 정리
-  if (state.moleGame) {
-    state.moleGame.active = false;
-    clearInterval(state.moleGame.timerId);
-    clearInterval(state.moleGame.spawnId);
-  }
+  stopMoleGame();
   showScreen("home");
 });
 

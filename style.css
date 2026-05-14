@@ -154,6 +154,7 @@ button {
 .mode-hangul   { background: linear-gradient(135deg, #f472b6, #ec4899); }
 .mode-alphabet { background: linear-gradient(135deg, #60a5fa, #3b82f6); }
 .mode-complete { background: linear-gradient(135deg, #fb7185, #e11d48); }
+.mode-words    { background: linear-gradient(135deg, #fbbf24, #f97316); }
 .mode-balloon  { background: linear-gradient(135deg, #f87171, #dc2626); }
 .mode-garage   { background: linear-gradient(135deg, #818cf8, #4f46e5); }
 .mode-compose  { background: linear-gradient(135deg, #a78bfa, #8b5cf6); }
@@ -285,6 +286,68 @@ button {
   color: #6b7280;
 }
 .btn-primary:active, .btn-ghost:active { transform: scale(0.96); }
+
+/* === 단어 카드 === */
+#screen-word.active {
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.word-card {
+  width: min(100%, 360px);
+  background: white;
+  border-radius: 24px;
+  padding: 26px 22px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.word-emoji {
+  font-size: clamp(86px, 24vw, 128px);
+  line-height: 1;
+}
+.word-ko {
+  font-size: clamp(34px, 9vw, 48px);
+  font-weight: 700;
+  color: #ec4899;
+  line-height: 1.1;
+}
+.word-en {
+  font-size: clamp(24px, 7vw, 34px);
+  font-weight: 700;
+  color: #2563eb;
+  line-height: 1.1;
+}
+.word-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+}
+.nav-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: white;
+  font-size: 34px;
+  line-height: 1;
+  color: #4b5563;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  transition: transform 0.1s;
+  flex-shrink: 0;
+}
+.nav-btn:active { transform: scale(0.92); }
+.word-speak-btn {
+  width: auto;
+  min-width: 150px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
 
 /* === 글자 완성 게임 === */
 #screen-complete.active {
@@ -769,6 +832,35 @@ button {
 .dash-jamo.weak .ch { color: #dc2626; }
 .dash-jamo.strong { background: #d1fae5; }
 .dash-jamo.strong .ch { color: #059669; }
+.dash-word-list {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+}
+.dash-word {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+.dash-word .word {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+  word-break: keep-all;
+}
+.dash-word .stat {
+  font-size: 11px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+.dash-word.weak {
+  background: #ffedd5;
+}
+.dash-word.weak .word {
+  color: #c2410c;
+}
 .dash-empty { font-size: 13px; color: #9ca3af; text-align: center; padding: 8px; }
 .dash-daily {
   display: flex;
@@ -1224,4 +1316,295 @@ button {
   align-items: center;
   justify-content: center;
   gap: 14px;
+}
+
+/* === 데스크톱 통합 레이아웃 === */
+@media (min-width: 900px) {
+  body {
+    padding: 0;
+  }
+
+  .topbar {
+    padding: 14px 32px;
+  }
+  .icon-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+  }
+  .title {
+    font-size: 24px;
+  }
+  .stars {
+    font-size: 18px;
+    min-width: 76px;
+    padding: 8px 16px;
+  }
+
+  .screen {
+    padding: 24px 36px 32px;
+  }
+
+  #screen-home.active {
+    width: min(100%, 1180px);
+    align-self: center;
+    gap: 18px;
+  }
+  .welcome {
+    font-size: 28px;
+    margin: 6px 0 4px;
+  }
+  .mode-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .mode-card {
+    min-height: 132px;
+    padding: 22px;
+    border-radius: 18px;
+    align-items: flex-start;
+  }
+  .mode-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 14px;
+    font-size: 22px;
+  }
+  .mode-label {
+    font-size: 22px;
+  }
+  .mode-desc {
+    font-size: 14px;
+  }
+  .mode-arrow {
+    align-self: center;
+  }
+
+  .card-grid {
+    width: min(100%, 1120px);
+    margin: 0 auto;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 18px;
+    align-content: start;
+  }
+  .card {
+    min-height: 132px;
+    border-radius: 18px;
+  }
+  .card-char {
+    font-size: 56px;
+  }
+  .card-emoji {
+    font-size: 42px;
+  }
+  .card-word {
+    font-size: 15px;
+  }
+
+  .card-detail-inner {
+    max-width: 420px;
+  }
+  .detail-emoji {
+    font-size: 120px;
+  }
+  .detail-char {
+    font-size: 96px;
+  }
+
+  .word-card {
+    width: min(100%, 460px);
+    border-radius: 26px;
+    padding: 34px 44px;
+  }
+  .word-controls {
+    gap: 20px;
+  }
+  .nav-btn {
+    width: 68px;
+    height: 68px;
+  }
+
+  .progress-bar,
+  .memory-header,
+  .garage-header {
+    width: min(100%, 920px);
+    align-self: center;
+  }
+  .complete-emoji {
+    font-size: 96px;
+  }
+  .syllable-box {
+    width: 104px;
+    height: 104px;
+    font-size: 62px;
+  }
+  .syllable-box.missing .con,
+  .syllable-box.missing .vow,
+  .syllable-box.missing .blank {
+    font-size: 50px;
+  }
+  .vowel-choices {
+    max-width: 560px;
+    gap: 14px;
+  }
+  .vowel-choice {
+    font-size: 42px;
+    border-radius: 18px;
+  }
+
+  .memory-grid {
+    width: min(100%, 980px);
+    margin: 0 auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .memory-card-back {
+    font-size: 92px;
+  }
+  .memory-card-emoji {
+    font-size: clamp(64px, 8vw, 118px);
+  }
+  .memory-card-word {
+    font-size: clamp(28px, 3.3vw, 46px);
+  }
+
+  .mole-field,
+  .balloon-field {
+    width: min(100%, 1040px);
+    margin: 0 auto;
+  }
+  .balloon-info {
+    width: min(100%, 1040px);
+    align-self: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  .balloon-mission {
+    font-size: 20px;
+  }
+  .balloon-stats {
+    font-size: 16px;
+  }
+  .balloon-shape {
+    width: 92px;
+    height: 110px;
+    font-size: 18px;
+  }
+  .balloon-string {
+    height: 40px;
+  }
+  .mole-field {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+    gap: 24px;
+    padding: 32px;
+  }
+  .mole-word {
+    font-size: 17px;
+  }
+
+  .compose-result {
+    min-width: 260px;
+    padding: 18px 34px;
+  }
+  .compose-char {
+    font-size: 82px;
+  }
+  .compose-pickers {
+    width: min(100%, 980px);
+  }
+  .picker-row {
+    gap: 16px;
+  }
+  .picker-col,
+  .picker-final {
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .picker-grid {
+    gap: 8px;
+  }
+  .picker-btn {
+    font-size: 24px;
+    min-height: 48px;
+  }
+
+  .clap-card {
+    max-width: 460px;
+    padding: 28px 42px;
+  }
+  .clap-emoji {
+    font-size: 100px;
+  }
+  .clap-word {
+    font-size: 46px;
+  }
+  .clap-buttons {
+    gap: 12px;
+  }
+  .clap-btn {
+    font-size: 22px;
+    border-radius: 16px;
+  }
+
+  #screen-dashboard.active {
+    width: min(100%, 1040px);
+    align-self: center;
+  }
+  .dash-summary {
+    gap: 12px;
+  }
+  .dash-stat {
+    border-radius: 16px;
+    padding: 18px 12px;
+  }
+  .dash-stat-label {
+    font-size: 13px;
+  }
+  .dash-stat-value {
+    font-size: 30px;
+  }
+  .dash-section {
+    border-radius: 16px;
+    padding: 18px 20px;
+  }
+  .dash-h3 {
+    font-size: 17px;
+  }
+
+  .garage-grid {
+    width: min(100%, 1040px);
+    margin: 0 auto;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 14px;
+    padding: 18px;
+  }
+  .garage-tile {
+    border-radius: 16px;
+  }
+  .garage-tile-emoji {
+    font-size: 48px;
+  }
+  .garage-message {
+    align-self: center;
+    min-width: 420px;
+  }
+
+  .result-buttons {
+    max-width: 380px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mode-card:hover,
+  .card:hover,
+  .btn-primary:hover,
+  .btn-ghost:hover,
+  .nav-btn:hover,
+  .vowel-choice:hover,
+  .clap-btn:hover,
+  .picker-btn:hover,
+  .garage-tile.unlocked:hover {
+    transform: translateY(-2px);
+  }
 }

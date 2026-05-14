@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <!-- 모바일 viewport: pinch-zoom 막고 viewport-fit로 노치 영역 사용 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- 모바일 viewport: viewport-fit로 노치 영역 사용 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <!-- iOS Safari: 홈 스크린 추가 시 풀스크린 -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -11,7 +11,10 @@
   <meta name="theme-color" content="#fef3c7" />
   <!-- 텍스트 선택/길게 누르기 컨텍스트 메뉴 비활성 -->
   <meta name="mobile-web-app-capable" content="yes" />
-  <title>꼬마키즈</title>
+  <title>꼬마키즈 - 한글 영어 카드 놀이</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="manifest" href="site.webmanifest" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -39,6 +42,14 @@
         <div class="mode-text">
           <div class="mode-label">영어 알파벳</div>
           <div class="mode-desc">A-Z 26장</div>
+        </div>
+        <div class="mode-arrow">›</div>
+      </button>
+      <button class="mode-card mode-words" data-mode="words">
+        <div class="mode-icon">🍎</div>
+        <div class="mode-text">
+          <div class="mode-label">단어 카드</div>
+          <div class="mode-desc">한글·영어 단어 듣기</div>
         </div>
         <div class="mode-arrow">›</div>
       </button>
@@ -121,6 +132,20 @@
         <button id="detailSpeakBtn" class="btn-primary">🔊 다시 듣기</button>
         <button id="detailCloseBtn" class="btn-ghost">닫기</button>
       </div>
+    </div>
+  </section>
+
+  <!-- 단어 카드 화면 -->
+  <section id="screen-word" class="screen">
+    <div class="word-card">
+      <div id="wordEmoji" class="word-emoji">🍎</div>
+      <div id="wordKo" class="word-ko">사과</div>
+      <div id="wordEn" class="word-en">Apple</div>
+    </div>
+    <div class="word-controls">
+      <button id="prevWord" class="nav-btn" aria-label="이전 단어">‹</button>
+      <button id="speakWord" class="btn-primary word-speak-btn">🔊 듣기</button>
+      <button id="nextWord" class="nav-btn" aria-label="다음 단어">›</button>
     </div>
   </section>
 
@@ -266,6 +291,10 @@
     <div class="dash-section">
       <h3 class="dash-h3">💪 잘하는 자모</h3>
       <div id="dashStrength" class="dash-list"></div>
+    </div>
+    <div class="dash-section">
+      <h3 class="dash-h3">🎮 게임에서 자주 틀린 단어</h3>
+      <div id="dashGameWords" class="dash-list dash-word-list"></div>
     </div>
     <div class="dash-section">
       <h3 class="dash-h3">📅 최근 7일</h3>
