@@ -183,8 +183,12 @@ const safeStorage = {
   set(key, value) {
     try { localStorage.setItem(key, value); } catch (_) {}
   },
+  remove(key) {
+    try { localStorage.removeItem(key); } catch (_) {}
+  },
 };
 
+const STARS_KEY = "kkomakids_m_stars";
 const WORD_REWARDS_KEY = "kkomakids_m_word_rewards";
 const COMPOSE_REWARDS_KEY = "kkomakids_m_compose_rewards";
 
@@ -212,7 +216,7 @@ function addStarOnce(rewardSet, storageKey, rewardKey, amount = 1) {
 
 // === 상태 ===
 const state = {
-  stars: parseInt(safeStorage.get("kkomakids_m_stars", "0") || "0", 10),
+  stars: parseInt(safeStorage.get(STARS_KEY, "0") || "0", 10),
   wordIndex: 0,
   wordRewards: loadRewardSet(WORD_REWARDS_KEY),
   composeRewards: loadRewardSet(COMPOSE_REWARDS_KEY),
@@ -253,14 +257,30 @@ function showScreen(name) {
 }
 
 // === 별 시스템 ===
+function updateStarDisplay() {
+  starCountEl.textContent = state.stars;
+  const dashStarsEl = document.getElementById("dashStars");
+  if (dashStarsEl) dashStarsEl.textContent = state.stars;
+}
+
 function addStar(amount = 1) {
   if (amount > 0) {
     state.stars += amount;
-    safeStorage.set("kkomakids_m_stars", String(state.stars));
-    starCountEl.textContent = state.stars;
+    safeStorage.set(STARS_KEY, String(state.stars));
+    updateStarDisplay();
     popStar();
     vibrate(15);
   }
+}
+
+function resetStars() {
+  state.stars = 0;
+  state.wordRewards = new Set();
+  state.composeRewards = new Set();
+  safeStorage.set(STARS_KEY, "0");
+  safeStorage.remove(WORD_REWARDS_KEY);
+  safeStorage.remove(COMPOSE_REWARDS_KEY);
+  updateStarDisplay();
 }
 function popStar() {
   starPopEl.classList.remove("show");
@@ -1693,6 +1713,70 @@ document.getElementById("dashResetBtn").addEventListener("click", () => {
   stats = createEmptyStats();
   saveStats();
   renderDashboard();
+});
+
+document.getElementById("dashResetStarsBtn").addEventListener("click", () => {
+  if (!confirm("별과 자동차 보상 진행을 초기화할까요?")) return;
+  resetStars();
+  renderDashboard();
+});
+
+const APP_CACHE_REFRESH_URLS = [
+  "./",
+  "index.html",
+  "style.css",
+  "data.js",
+  "audio-manifest.js",
+  "app.js",
+  "site.webmanifest",
+];
+
+function appScopePrefix() {
+  const pagesBase = "/kkomakids-mobile/";
+  const pathname = window.location.pathname;
+  const base = pathname.includes(pagesBase) ? pagesBase : "/";
+  return `${window.location.origin}${base}`;
+}
+
+async function clearAppBrowserCache() {
+  if ("caches" in window) {
+    const names = await caches.keys();
+    const appNames = names.filter(name => /kkomakids|kkoma|꼬마/i.test(name));
+    await Promise.all(appNames.map(name => caches.delete(name)));
+  }
+
+  if ("serviceWorker" in navigator && navigator.serviceWorker.getRegistrations) {
+    const scopePrefix = appScopePrefix();
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(
+      registrations
+        .filter(reg => reg.scope.startsWith(scopePrefix))
+        .map(reg => reg.unregister())
+    );
+  }
+
+  await Promise.all(
+    APP_CACHE_REFRESH_URLS.map(file => {
+      const url = new URL(file, window.location.href);
+      return fetch(url, { cache: "reload" }).catch(() => null);
+    })
+  );
+}
+
+document.getElementById("dashClearCacheBtn").addEventListener("click", async (event) => {
+  if (!confirm("앱 캐시를 정리하고 새로고침할까요?")) return;
+  const btn = event.currentTarget;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "정리 중...";
+  try {
+    await clearAppBrowserCache();
+  } finally {
+    btn.textContent = originalText;
+    const url = new URL(window.location.href);
+    url.searchParams.set("refresh", String(Date.now()));
+    window.location.replace(url.toString());
+  }
 });
 
 // ==============================

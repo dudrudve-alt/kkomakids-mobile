@@ -895,6 +895,25 @@ button {
   color: #4338ca;
 }
 .dash-bar-date { font-size: 10px; color: #6b7280; }
+.dash-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.dash-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.dash-cache {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.65;
+  pointer-events: none;
+}
 
 /* === 자모 합성 === */
 #screen-compose.active {
@@ -1570,6 +1589,10 @@ button {
   }
   .dash-h3 {
     font-size: 17px;
+  }
+  .dash-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
   }
 
   .garage-grid {
