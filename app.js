@@ -274,34 +274,90 @@ function vibrate(ms) {
 }
 
 // ==============================
-// TTS — 디바운스 + 큐 관리 (이전 교훈)
+// 음성 — Mac TTS 오디오 우선 + 브라우저 TTS fallback
 // ==============================
 let _lastSpeakTime = 0;
 let _lastSpeakText = "";
+let _currentSpeechAudio = null;
 const SPEAK_DEBOUNCE_MS = 250;
+const KO_AUDIO_BASE_PATH = "assets/audio/ko/";
 
-function speak(text, lang = "ko-KR") {
-  if (!("speechSynthesis" in window)) return;
+function audioKeyForText(text) {
+  return Array.from(String(text).normalize("NFC"))
+    .map(ch => ch.codePointAt(0).toString(16))
+    .join("-");
+}
+
+function hasKoreanAudio(text) {
+  const keys = window.KKOMAKIDS_KO_AUDIO_KEYS;
+  return keys && typeof keys.has === "function" && keys.has(audioKeyForText(text));
+}
+
+function stopSpeechAudio() {
+  if (!_currentSpeechAudio) return;
+  _currentSpeechAudio.pause();
+  _currentSpeechAudio.currentTime = 0;
+  _currentSpeechAudio = null;
+}
+
+function stopSpeech() {
+  stopSpeechAudio();
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
+function speakWithBrowserTts(text, lang, options = {}) {
+  if (!("speechSynthesis" in window)) {
+    if (options.onEnd) setTimeout(options.onEnd, 0);
+    return;
+  }
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = lang;
+  utter.rate = lang === "ko-KR" ? 0.9 : 0.85;
+  utter.pitch = 1.05;
+  utter.volume = 1;
+  utter.onstart = () => { if (options.onStart) options.onStart(); };
+  utter.onend = () => { if (options.onEnd) options.onEnd(); };
+  utter.onerror = () => { if (options.onEnd) options.onEnd(); };
+
+  setTimeout(() => window.speechSynthesis.speak(utter), 30);
+}
+
+function speak(text, lang = "ko-KR", options = {}) {
+  if (!text) return;
+  const normalizedText = String(text).normalize("NFC");
   const synth = window.speechSynthesis;
   const now = Date.now();
 
   // 같은 텍스트 빠른 연속 호출 무시
-  if (text === _lastSpeakText && now - _lastSpeakTime < SPEAK_DEBOUNCE_MS) return;
+  if (normalizedText === _lastSpeakText && now - _lastSpeakTime < SPEAK_DEBOUNCE_MS) return;
 
-  // 큐 누적 방지 — 데몬 stall 방지
-  if (synth.speaking || synth.pending) synth.cancel();
+  // 큐 누적 방지
+  stopSpeechAudio();
+  if (synth && (synth.speaking || synth.pending)) synth.cancel();
 
   _lastSpeakTime = now;
-  _lastSpeakText = text;
+  _lastSpeakText = normalizedText;
 
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = lang;
-  utter.rate = 0.9;
-  utter.pitch = 1.05;
-  utter.volume = 1;
-  // voice 명시 안 함 — Chrome/Safari 알아서 lang으로 선택
+  if (lang === "ko-KR" && hasKoreanAudio(normalizedText)) {
+    const audio = new Audio(`${KO_AUDIO_BASE_PATH}${audioKeyForText(normalizedText)}.m4a`);
+    _currentSpeechAudio = audio;
+    audio.onplay = () => { if (options.onStart) options.onStart(); };
+    audio.onended = () => {
+      if (_currentSpeechAudio === audio) _currentSpeechAudio = null;
+      if (options.onEnd) options.onEnd();
+    };
+    audio.onerror = () => {
+      if (_currentSpeechAudio === audio) _currentSpeechAudio = null;
+      speakWithBrowserTts(normalizedText, lang, options);
+    };
+    audio.play().catch(() => {
+      if (_currentSpeechAudio === audio) _currentSpeechAudio = null;
+      speakWithBrowserTts(normalizedText, lang, options);
+    });
+    return;
+  }
 
-  setTimeout(() => synth.speak(utter), 30);
+  speakWithBrowserTts(normalizedText, lang, options);
 }
 
 // ==============================
@@ -389,15 +445,9 @@ function renderWord() {
 
 function speakCurrentWord() {
   const w = WORDS[state.wordIndex];
-  speak(w.ko, "ko-KR");
-  setTimeout(() => {
-    if (!("speechSynthesis" in window)) return;
-    const utter = new SpeechSynthesisUtterance(w.en);
-    utter.lang = "en-US";
-    utter.rate = 0.85;
-    utter.pitch = 1.05;
-    window.speechSynthesis.speak(utter);
-  }, 900);
+  speak(w.ko, "ko-KR", {
+    onEnd: () => setTimeout(() => speak(w.en, "en-US"), 180),
+  });
   addStarOnce(state.wordRewards, WORD_REWARDS_KEY, w.ko);
 }
 
@@ -1095,21 +1145,16 @@ function splitKoreanSyllables(word) {
 }
 
 function speakSyllablesWithClaps(word) {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
+  stopSpeech();
   const sylls = splitKoreanSyllables(word);
   if (sylls.length === 0) return;
   let i = 0;
   function next() {
     if (i >= sylls.length) return;
-    const u = new SpeechSynthesisUtterance(sylls[i]);
-    u.lang = "ko-KR";
-    u.rate = 0.85;
-    u.pitch = 1.1;
-    u.onstart = () => playClapSound();
-    u.onend = () => { i++; setTimeout(next, 220); };
-    u.onerror = () => { i++; setTimeout(next, 220); };
-    window.speechSynthesis.speak(u);
+    speak(sylls[i], "ko-KR", {
+      onStart: () => playClapSound(),
+      onEnd: () => { i++; setTimeout(next, 220); },
+    });
   }
   next();
 }
@@ -1148,7 +1193,7 @@ function handleClapAnswer(btn, chosen, correct) {
     addStar(1);
     recordAttempt(true);
     recordGameWord(state.clap.item.word, true, "clap"); // 게임 단어 통계
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    stopSpeech();
     playClapSequence(correct, () => {
       setTimeout(loadClapQuestion, 600);
     });
@@ -1164,7 +1209,7 @@ function handleClapAnswer(btn, chosen, correct) {
 }
 
 document.getElementById("nextClapBtn").addEventListener("click", () => {
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  stopSpeech();
   loadClapQuestion();
 });
 
@@ -1701,7 +1746,7 @@ document.querySelector(".stars").addEventListener("click", () => {
 
 // 홈 버튼
 document.getElementById("homeBtn").addEventListener("click", () => {
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  stopSpeech();
   hideCardDetail();
   state.questionIndex = 0;
   state.results = [];
